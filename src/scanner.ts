@@ -1,310 +1,184 @@
+#!/usr/bin/env node
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
+import { Writable } from 'stream';
 import { stripCommentsFromFile } from './comment-stripper';
+import { readBlacklist, isBlacklisted } from './blacklist';
+import { isEnvFile, isTextFile, safeReadFile } from './file-utils';
 
-// Interface for typing errors
-interface FileSystemError extends Error {
-  code?: string;
+/**
+ * Statistics tracked while scanning.
+ */
+export interface ScanStats {
+  dirs: number;
+  files: number;
+  skipped: number;
+  envFiles: number;
 }
 
 /**
- * Function to read the blacklist file with excluded paths
- * @param blacklistPath Path to the blacklist file
- * @returns Array with paths to exclude
+ * Options accepted by {@link scanDirectory}.
  */
-async function readBlacklist(blacklistPath: string): Promise<string[]> {
-  const blacklist: string[] = [];
-  
-  try {
-    // Check if the blacklist file exists
-    await fs.promises.access(blacklistPath, fs.constants.R_OK);
-    
-    // Create readline interface for reading line by line
-    const fileStream = fs.createReadStream(blacklistPath);
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity
-    });
-    
-    // Process each line
-    for await (const line of rl) {
-      const trimmedLine = line.trim();
-      if (trimmedLine && !trimmedLine.startsWith('#')) {
-        // Normalize the path (use unified notation for separators)
-        blacklist.push(trimmedLine.replace(/\\/g, '/'));
-      }
-    }
-    
-    console.log(`Loaded ${blacklist.length} paths from blacklist in ${blacklistPath}`);
-  } catch (error: unknown) {
-    // Safe error handling with unknown type
-    if (error instanceof Error) {
-      const fsError = error as FileSystemError;
-      if (fsError.code === 'ENOENT') {
-        console.warn(`Warning: Blacklist file ${blacklistPath} does not exist. No paths will be excluded.`);
-      } else {
-        console.warn(`Warning: Cannot read blacklist file ${blacklistPath}: ${fsError.message}`);
-      }
-    } else {
-      console.warn(`Warning: Unexpected error reading blacklist file ${blacklistPath}`);
-    }
+export interface ScanDirectoryOptions {
+  /** Current directory to scan. */
+  dirPath: string;
+  /** List of excluded paths/patterns. */
+  blacklist: string[];
+  /** Stream for writing the output. */
+  outputStream: Writable;
+  /** Base directory (starting point of the scan) used to compute relative paths. */
+  basePath: string;
+  /** Mutable statistics object updated as the scan progresses. */
+  stats: ScanStats;
+  /** Whether to include the content of `.env` files. */
+  includeEnvFiles: boolean;
+  /** Whether to strip comments from supported source files. */
+  stripComments: boolean;
+  /** Absolute paths that must never be read (e.g. the output file itself). */
+  excludedAbsolutePaths?: ReadonlySet<string>;
+  /** Logger used for progress/debug output. */
+  logger?: Pick<Console, 'log' | 'warn' | 'error'>;
+}
+
+/**
+ * Writes a chunk to a stream while respecting backpressure, so very large
+ * scans do not buffer the whole output in memory.
+ */
+function writeChunk(stream: Writable, chunk: string): Promise<void> {
+  if (stream.write(chunk)) {
+    return Promise.resolve();
   }
-  
-  return blacklist;
+  return new Promise((resolve) => stream.once('drain', resolve));
 }
 
 /**
- * Checks whether a given path should be excluded (blacklisted)
- * @param currentPath Current path to check
- * @param blacklist List of excluded paths
- * @returns true if the path should be excluded, false otherwise
+ * Recursively scans a directory, writing each path and (for text files) its
+ * content to the output stream.
  */
-function isBlacklisted(currentPath: string, blacklist: string[]): boolean {
-  const normalizedPath = currentPath.replace(/\\/g, '/');
-  const pathSegments = normalizedPath.split('/');
-  
-  for (const item of blacklist) {
-    const normalizedItem = item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''); // Remove leading and trailing /
-    
-    // 1. Check for direct match of the entire path
-    if (normalizedPath === normalizedItem) {
-      return true;
-    }
-    
-    // 2. Improved check whether the item is a directory or file
-    // A directory is: a) if it ends with /, b) if it's included in knownDirectories, 
-    // c) if it doesn't contain a dot (except for hidden directories like .git)
-    const knownDirectories = ['node_modules', '.git', '.vscode', 'dist', 'build', 'coverage', 'src', 'test'];
-    const endsWithSlash = normalizedItem.endsWith('/');
-    const isKnownDirectory = knownDirectories.includes(normalizedItem);
-    const isHiddenDir = normalizedItem.startsWith('.') && !normalizedItem.includes('.', 1);
-    const hasNoExtension = !normalizedItem.includes('.');
-    
-    const isDirectory = endsWithSlash || isKnownDirectory || isHiddenDir || hasNoExtension;
-    
-    if (isDirectory) {
-      // 3. Check if the path starts with the item from blacklist (standard blacklist case)
-      if (normalizedPath === normalizedItem || 
-          normalizedPath.startsWith(normalizedItem + '/')) {
-        return true;
-      }
-      
-      // 4. Check if any segment of the path matches the directory from blacklist
-      // This will apply to node_modules in subfolders
-      if (pathSegments.includes(normalizedItem)) {
-        return true;
-      }
-    } else {
-      // 5. For files: check if the last segment (filename) matches the blacklist item
-      const fileName = pathSegments[pathSegments.length - 1];
-      if (fileName === normalizedItem) {
-        return true;
-      }
-    }
-  }
-  
-  return false;
-}
+export async function scanDirectory(options: ScanDirectoryOptions): Promise<void> {
+  const {
+    dirPath,
+    blacklist,
+    outputStream,
+    basePath,
+    stats,
+    includeEnvFiles,
+    stripComments,
+    excludedAbsolutePaths,
+    logger = console,
+  } = options;
 
-/**
- * Checks if the file is an .env file
- * @param filePath Path to the file
- * @returns true if the file is an .env file, false otherwise
- */
-function isEnvFile(filePath: string): boolean {
-  const fileName = path.basename(filePath).toLowerCase();
-  return fileName === '.env' || fileName.startsWith('.env.') || fileName.endsWith('.env');
-}
-
-/**
- * Checks if the file is a text file based on its extension
- * @param filePath Path to the file
- * @returns true if the file is a text file, false otherwise
- */
-function isTextFile(filePath: string): boolean {
-  const textExtensions = [
-    '.txt', '.md', '.js', '.ts', '.jsx', '.tsx', '.css', '.scss', '.html', '.htm',
-    '.xml', '.json', '.yaml', '.yml', '.csv', '.ini', '.conf', '.py', '.java',
-    '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rb', '.php', '.pl', '.sh', '.bat',
-    '.ps1', '.sql', '.gitignore', '.env', '.config', '.toml', '.dockerfile'
-  ];
-  
-  // Files without extension that are often text files
-  const textFilenames = [
-    'dockerfile', 'makefile', 'jenkinsfile', 'vagrantfile', 'readme', 'license',
-    'gemfile', 'rakefile', 'procfile', '.gitignore', '.dockerignore', '.npmignore'
-  ];
-  
-  const ext = path.extname(filePath).toLowerCase();
-  const filename = path.basename(filePath).toLowerCase();
-  
-  return textExtensions.includes(ext) || textFilenames.includes(filename);
-}
-
-/**
- * Safely read a text file
- * @param filePath Path to the file
- * @returns File content or error message
- */
-async function safeReadFile(filePath: string): Promise<string> {
   try {
-    return await fs.promises.readFile(filePath, 'utf-8');
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      return `[Error reading file: ${error.message}]`;
-    }
-    return '[Unexpected error reading file]';
-  }
-}
-
-/**
- * Recursively scan a directory
- * @param dirPath Current directory to scan
- * @param blacklist List of excluded paths
- * @param outputStream Stream for writing to output file
- * @param basePath Base directory (starting point of scanning)
- * @param stats Statistics for tracking progress
- * @param includeEnvFiles Flag whether to include .env files
- */
-async function scanDirectory(
-  dirPath: string,
-  blacklist: string[],
-  outputStream: fs.WriteStream,
-  basePath: string,
-  stats: { dirs: number, files: number, skipped: number, envFiles: number },
-  includeEnvFiles: boolean,
-  stripComments: boolean
-): Promise<void> {
-  try {
-    // Get all items in the directory
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
-      // Get the relative path from the base directory
       const relativePath = path.relative(basePath, fullPath).replace(/\\/g, '/');
-      
-      // Skip if the path is in the blacklist
+
+      // Never scan an explicitly excluded absolute path (e.g. the output file).
+      if (excludedAbsolutePaths?.has(path.resolve(fullPath))) {
+        stats.skipped++;
+        continue;
+      }
+
+      // Skip if the path is in the blacklist.
       if (isBlacklisted(relativePath, blacklist)) {
         stats.skipped++;
         if (process.env.DEBUG) {
-          console.log(`Skipping blacklisted path: ${relativePath}`);
+          logger.log(`Skipping blacklisted path: ${relativePath}`);
         }
         continue;
       }
-      
-      // Write the path to file
-      outputStream.write(`${relativePath}\n`);
-      
+
+      // Write the path to file.
+      await writeChunk(outputStream, `${relativePath}\n`);
+
+      // Symbolic links are not followed (avoids cycles and EISDIR noise).
+      if (entry.isSymbolicLink()) {
+        stats.files++;
+        await writeChunk(outputStream, `[Symbolic link - not followed]\n\n`);
+        continue;
+      }
+
       if (entry.isDirectory()) {
         stats.dirs++;
-        // Show progress every 100 directories
         if (stats.dirs % 100 === 0) {
-          console.log(`Progress: ${stats.dirs} directories, ${stats.files} files processed, ${stats.skipped} skipped, ${stats.envFiles} .env files`);
+          logger.log(
+            `Progress: ${stats.dirs} directories, ${stats.files} files processed, ` +
+              `${stats.skipped} skipped, ${stats.envFiles} .env files`
+          );
         }
-        // Recursively scan subdirectories
-        await scanDirectory(fullPath, blacklist, outputStream, basePath, stats, includeEnvFiles, stripComments);
-      } else {
+        await scanDirectory({ ...options, dirPath: fullPath });
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        // Sockets, FIFOs, block/character devices, etc.
         stats.files++;
-        
-        // Check if the file is an .env file
-        const isEnv = isEnvFile(fullPath);
-        
-        if (isEnv) {
-          stats.envFiles++;
-          
-          // Skip the .env file if it should not be included
-          if (!includeEnvFiles) {
-            outputStream.write(`[.env file - content skipped according to settings]\n\n`);
-            if (process.env.DEBUG) {
-              console.log(`Skipping .env file: ${relativePath}`);
-            }
-            continue;
+        await writeChunk(outputStream, `[Special file - content not shown]\n\n`);
+        continue;
+      }
+
+      stats.files++;
+
+      // Handle .env files specially (never comment-stripped).
+      if (isEnvFile(fullPath)) {
+        stats.envFiles++;
+
+        if (!includeEnvFiles) {
+          await writeChunk(outputStream, `[.env file - content skipped according to settings]\n\n`);
+          if (process.env.DEBUG) {
+            logger.log(`Skipping .env file: ${relativePath}`);
           }
-          
-          // If it's an .env file and the option is enabled - read and add directly,
-          // without checking if it's a text file
-          // Note: Comments are NOT stripped from .env files
-          try {
-            const content = await safeReadFile(fullPath);
-            outputStream.write(`### .env file content ###\n${content}\n### End of .env file ###\n\n`);
-            if (process.env.DEBUG) {
-              console.log(`Included .env file: ${relativePath}`);
-            }
-          } catch (error: unknown) {
-            if (error instanceof Error) {
-              outputStream.write(`[Error reading .env file: ${error.message}]\n\n`);
-            } else {
-              outputStream.write(`[Unexpected error reading .env file]\n\n`);
-            }
-          }
-          continue; // Continue with the next file/directory
-        }
-        
-        // For all other files (not .env) - check if they are text files
-        if (!isTextFile(fullPath)) {
-          outputStream.write(`[Binary or non-text content not shown]\n\n`);
           continue;
         }
-        
-        // Read and write file content (not .env)
-        try {
-          let content = await safeReadFile(fullPath);
-          if (stripComments) {
-            content = stripCommentsFromFile(content, fullPath);
-          }
-          outputStream.write(`${content}\n\n`);
-        } catch (error: unknown) {
-          if (error instanceof Error) {
-            outputStream.write(`[Error reading content: ${error.message}]\n\n`);
-          } else {
-            outputStream.write(`[Unexpected error reading content]\n\n`);
-          }
+
+        const content = await safeReadFile(fullPath);
+        await writeChunk(
+          outputStream,
+          `### .env file content ###\n${content}\n### End of .env file ###\n\n`
+        );
+        if (process.env.DEBUG) {
+          logger.log(`Included .env file: ${relativePath}`);
         }
+        continue;
       }
+
+      // For all other files - only include the content of text files.
+      if (!isTextFile(fullPath)) {
+        await writeChunk(outputStream, `[Binary or non-text content not shown]\n\n`);
+        continue;
+      }
+
+      let content = await safeReadFile(fullPath);
+      if (stripComments) {
+        content = stripCommentsFromFile(content, fullPath);
+      }
+      await writeChunk(outputStream, `${content}\n\n`);
     }
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error(`Error scanning directory ${dirPath}: ${error.message}`);
+      logger.error(`Error scanning directory ${dirPath}: ${error.message}`);
     } else {
-      console.error(`Unexpected error scanning directory ${dirPath}`);
+      logger.error(`Unexpected error scanning directory ${dirPath}`);
     }
   }
 }
 
 /**
- * Parse command line arguments
- * @returns Object with target directory, blacklist path, output path, and .env files flag
+ * Parsed command line options for the scanner.
  */
-function parseArgs(): {
-  targetDir: string,
-  blacklistPath: string,
-  outputPath: string,
-  includeEnvFiles: boolean,
-  stripComments: boolean
-} {
-  let targetDir = process.cwd();
-  let blacklistPath = '';
-  let outputPath = '';
-  let includeEnvFiles = false;  // By default .env files are not included
-  let stripComments = false;    // By default comments are kept
-  
-  for (let i = 2; i < process.argv.length; i++) {
-    const arg = process.argv[i];
-    
-    if (arg === '--dir' || arg === '-d') {
-      targetDir = process.argv[++i] || targetDir;
-    } else if (arg === '--blacklist' || arg === '-b') {
-      blacklistPath = process.argv[++i] || '';
-    } else if (arg === '--output' || arg === '-o') {
-      outputPath = process.argv[++i] || '';
-    } else if (arg === '--env' || arg === '-e') {
-      includeEnvFiles = true;  // Flag to include .env files
-    } else if (arg === '--strip-comments' || arg === '-s') {
-      stripComments = true;    // Flag to strip comments from code
-    } else if (arg === '--help' || arg === '-h') {
-      console.log(`
+export interface ScannerCliOptions {
+  targetDir: string;
+  blacklistPath: string;
+  outputPath: string;
+  includeEnvFiles: boolean;
+  stripComments: boolean;
+  /** True when `--help` was requested. */
+  help: boolean;
+}
+
+export const HELP_TEXT = `
 Directory Scanner - Recursively scans a directory and outputs paths and file contents
 
 Usage:
@@ -320,57 +194,109 @@ Options:
 
 Environment variables:
   DEBUG=1          Enable additional debug output
-`);
-      process.exit(0);
-    } else if (!arg.startsWith('-')) {
+`;
+
+/**
+ * Parses command line arguments.
+ *
+ * @param argv Full argv array (defaults to `process.argv`)
+ * @param logger Logger for warnings about unknown flags
+ * @returns Parsed options
+ */
+export function parseArgs(
+  argv: string[] = process.argv,
+  logger: Pick<Console, 'warn'> = console
+): ScannerCliOptions {
+  let targetDir = process.cwd();
+  let blacklistPath = '';
+  let outputPath = '';
+  let includeEnvFiles = false;
+  let stripComments = false;
+  let help = false;
+
+  for (let i = 2; i < argv.length; i++) {
+    const arg = argv[i];
+
+    if (arg === '--dir' || arg === '-d') {
+      targetDir = argv[++i] || targetDir;
+    } else if (arg === '--blacklist' || arg === '-b') {
+      blacklistPath = argv[++i] || '';
+    } else if (arg === '--output' || arg === '-o') {
+      outputPath = argv[++i] || '';
+    } else if (arg === '--env' || arg === '-e') {
+      includeEnvFiles = true;
+    } else if (arg === '--strip-comments' || arg === '-s') {
+      stripComments = true;
+    } else if (arg === '--help' || arg === '-h') {
+      help = true;
+    } else if (arg.startsWith('-')) {
+      logger.warn(`Warning: Unknown option "${arg}" ignored.`);
+    } else {
       targetDir = arg;
     }
   }
-  
-  // Use default values if not specified
+
   if (!blacklistPath) {
     blacklistPath = path.join(targetDir, 'blacklist.txt');
   }
-  
+
   if (!outputPath) {
     outputPath = path.join(targetDir, 'project_files.txt');
   }
-  
-  return { targetDir, blacklistPath, outputPath, includeEnvFiles, stripComments };
+
+  return { targetDir, blacklistPath, outputPath, includeEnvFiles, stripComments, help };
 }
 
 /**
- * Main function of the program
+ * High-level scan entry: reads the blacklist, scans the target directory and
+ * writes the result to the output file. Returns the collected statistics.
  */
-async function main() {
-  const { targetDir, blacklistPath, outputPath, includeEnvFiles, stripComments } = parseArgs();
+export async function runScan(
+  options: ScannerCliOptions,
+  logger: Pick<Console, 'log' | 'warn' | 'error'> = console
+): Promise<ScanStats> {
+  const { targetDir, blacklistPath, outputPath, includeEnvFiles, stripComments } = options;
 
-  console.log(`Starting directory scan: ${targetDir}`);
-  console.log(`Using blacklist from: ${blacklistPath}`);
-  console.log(`Output will be written to: ${outputPath}`);
-  console.log(`.env files: ${includeEnvFiles ? 'will be included' : 'will not be included'}`);
-  console.log(`Comment stripping: ${stripComments ? 'enabled' : 'disabled'}`);
-  
-  // Read the blacklist
-  const blacklist = await readBlacklist(blacklistPath);
-  
-  // Create stream for writing to output file
+  logger.log(`Starting directory scan: ${targetDir}`);
+  logger.log(`Using blacklist from: ${blacklistPath}`);
+  logger.log(`Output will be written to: ${outputPath}`);
+  logger.log(`.env files: ${includeEnvFiles ? 'will be included' : 'will not be included'}`);
+  logger.log(`Comment stripping: ${stripComments ? 'enabled' : 'disabled'}`);
+
+  const blacklist = await readBlacklist(blacklistPath, logger);
+
   const outputStream = fs.createWriteStream(outputPath);
-  
-  // Statistics for tracking progress
-  const stats = { dirs: 0, files: 0, skipped: 0, envFiles: 0 };
-  
+
+  // Surface stream errors instead of letting them crash the process unhandled.
+  const streamError = new Promise<never>((_, reject) => {
+    outputStream.once('error', reject);
+  });
+
+  const stats: ScanStats = { dirs: 0, files: 0, skipped: 0, envFiles: 0 };
+
   try {
-    // Start recursive scanning
-    console.log('Starting scan...');
+    logger.log('Starting scan...');
     const startTime = Date.now();
-    
-    await scanDirectory(targetDir, blacklist, outputStream, targetDir, stats, includeEnvFiles, stripComments);
-    
-    const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000;
-    
-    console.log(`
+
+    await Promise.race([
+      scanDirectory({
+        dirPath: targetDir,
+        blacklist,
+        outputStream,
+        basePath: targetDir,
+        stats,
+        includeEnvFiles,
+        stripComments,
+        // Never read the output file we are currently writing.
+        excludedAbsolutePaths: new Set([path.resolve(outputPath)]),
+        logger,
+      }),
+      streamError,
+    ]);
+
+    const duration = (Date.now() - startTime) / 1000;
+
+    logger.log(`
 Scan completed in ${duration.toFixed(2)} seconds:
 - Directories processed: ${stats.dirs}
 - Files processed: ${stats.files}
@@ -380,15 +306,45 @@ Scan completed in ${duration.toFixed(2)} seconds:
 `);
   } catch (error: unknown) {
     if (error instanceof Error) {
-      console.error(`Error during scanning: ${error.message}`);
+      logger.error(`Error during scanning: ${error.message}`);
     } else {
-      console.error(`Unexpected error during scanning`);
+      logger.error(`Unexpected error during scanning`);
     }
   } finally {
-    // Close the output stream
-    outputStream.end();
+    // Wait for the stream to fully close. Listening on 'close' (rather than the
+    // end() callback) resolves on both success and error/destroy, so a failing
+    // output path cannot leave this hanging.
+    await new Promise<void>((resolve) => {
+      if (outputStream.destroyed) {
+        resolve();
+        return;
+      }
+      outputStream.on('close', () => resolve());
+      outputStream.end();
+    });
   }
+
+  return stats;
 }
 
-// Execute the program
-main().catch(console.error);
+/**
+ * CLI entry point.
+ */
+export async function main(argv: string[] = process.argv): Promise<void> {
+  const options = parseArgs(argv);
+
+  if (options.help) {
+    console.log(HELP_TEXT);
+    return;
+  }
+
+  await runScan(options);
+}
+
+// Execute only when run directly (not when imported by tests or other modules).
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

@@ -1,2 +1,11 @@
 node_modules/
+
+# Build output (compiled on publish via prepublishOnly)
+dist/
+
+# Scanner output (default and example names)
 output.txt
+project_files.txt
+
+# Test coverage
+coverage/
