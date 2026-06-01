@@ -47,6 +47,11 @@ export interface ScanSelectionOptions {
   includeEnvFiles: boolean;
   /** Whether to strip comments from supported source files. */
   stripComments: boolean;
+  /**
+   * Optional progress callback, invoked after each file is processed with the
+   * number of files done and the total. Lets callers render a progress bar.
+   */
+  onProgress?: (done: number, total: number) => void;
 }
 
 /**
@@ -60,16 +65,20 @@ export interface ScanSelectionOptions {
  * point (shebang / `require.main` guard) of `scanner.ts`.
  */
 export async function scanSelectionToString(options: ScanSelectionOptions): Promise<string> {
-  const { rootDir, includedFiles, includeEnvFiles, stripComments } = options;
+  const { rootDir, includedFiles, includeEnvFiles, stripComments, onProgress } = options;
 
   const entries = includedFiles
     .map((file) => ({ file, rel: path.relative(rootDir, file).replace(/\\/g, '/') }))
     .sort((a, b) => a.rel.localeCompare(b.rel));
 
+  const total = entries.length;
+  let done = 0;
   let output = '';
   for (const { file, rel } of entries) {
     const body = await renderFileBody(file, includeEnvFiles, stripComments);
     output += `${rel}\n${body}`;
+    done++;
+    onProgress?.(done, total);
   }
   return output;
 }

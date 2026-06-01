@@ -208,8 +208,21 @@ function readScanConfig(): { includeEnvFiles: boolean; stripComments: boolean } 
 async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void> {
   const { includeEnvFiles, stripComments } = readScanConfig();
   const text = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating…' },
-    () => scanSelectionToString({ rootDir, includedFiles: files, includeEnvFiles, stripComments })
+    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating' },
+    (progress) => {
+      let lastPct = 0;
+      return scanSelectionToString({
+        rootDir,
+        includedFiles: files,
+        includeEnvFiles,
+        stripComments,
+        onProgress: (done, total) => {
+          const pct = Math.floor((done / total) * 100);
+          progress.report({ increment: pct - lastPct, message: `${done}/${total} files (${pct}%)` });
+          lastPct = pct;
+        },
+      });
+    }
   );
   await deliver(text);
   vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);

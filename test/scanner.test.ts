@@ -226,6 +226,28 @@ describe('scanSelectionToString', () => {
 
     await fs.promises.rm(root, { recursive: true, force: true });
   });
+
+  test('reports progress once per file with an increasing done count', async () => {
+    const files = [
+      path.join(root, 'a.txt'),
+      path.join(root, 'code.js'),
+      path.join(root, 'sub', 'b.md'),
+    ];
+    const calls: Array<{ done: number; total: number }> = [];
+    await scanSelectionToString({
+      rootDir: root,
+      includedFiles: files,
+      includeEnvFiles: false,
+      stripComments: false,
+      onProgress: (done, total) => calls.push({ done, total }),
+    });
+
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls.map((c) => c.done), [1, 2, 3]);
+    assert.ok(calls.every((c) => c.total === 3));
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
 });
 
 describe('renderFileBody', () => {
