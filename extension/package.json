@@ -1,0 +1,99 @@
+{
+  "name": "project-context",
+  "displayName": "Project Context",
+  "description": "Pick files and folders with checkboxes and generate their contents or a project skeleton for LLMs.",
+  "version": "0.0.1",
+  "publisher": "your-publisher-id",
+  "private": true,
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projectContext",
+          "title": "Project Context",
+          "icon": "resources/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "projectContext": [
+        {
+          "id": "projectContext.tree",
+          "name": "Selection"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "projectContext.generate",
+        "title": "Generate Contents",
+        "category": "Project Context",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "projectContext.refresh",
+        "title": "Refresh",
+        "category": "Project Context",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "projectContext.clear",
+        "title": "Clear Selection",
+        "category": "Project Context",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "projectContext.addFromExplorer",
+        "title": "Add to Project Context",
+        "category": "Project Context"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "projectContext.generate",
+          "when": "view == projectContext.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectContext.refresh",
+          "when": "view == projectContext.tree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "projectContext.clear",
+          "when": "view == projectContext.tree",
+          "group": "navigation@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "projectContext.addFromExplorer",
+          "group": "9_projectContext"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.84.0",
+    "esbuild": "^0.20.2",
+    "typescript": "^5.4.5",
+    "@vscode/vsce": "^2.24.0"
+  }
+}
