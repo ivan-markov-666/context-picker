@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { runScan, parseArgs, ScannerCliOptions } from '../src/scanner';
+import {
+  runScan,
+  parseArgs,
+  ScannerCliOptions,
+  scanSelectionToString,
+  renderFileBody,
+} from '../src/scanner';
 
 const silentLogger = { log: () => {}, warn: () => {}, error: () => {} };
 
@@ -148,5 +154,90 @@ describe('parseArgs', () => {
 
   test('flags help', () => {
     assert.equal(parseArgs(['node', 'scanner', '--help']).help, true);
+  });
+});
+
+describe('scanSelectionToString', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await makeFixture();
+  });
+
+  test('includes only the selected files, sorted by relative path, with content', async () => {
+    const files = [
+      path.join(root, 'sub', 'b.md'),
+      path.join(root, 'code.js'),
+      path.join(root, 'a.txt'),
+    ];
+    const output = await scanSelectionToString({
+      rootDir: root,
+      includedFiles: files,
+      includeEnvFiles: false,
+      stripComments: false,
+    });
+
+    assert.ok(output.includes('a.txt\nhello world'));
+    assert.ok(output.includes('code.js\n'));
+    assert.ok(output.includes('sub/b.md\n# title'));
+    // Unselected files must not appear.
+    assert.ok(!output.includes('image.png'));
+    assert.ok(!output.includes('.env'));
+    // Sorted: a.txt before code.js before sub/b.md.
+    assert.ok(output.indexOf('a.txt') < output.indexOf('code.js'));
+    assert.ok(output.indexOf('code.js') < output.indexOf('sub/b.md'));
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
+
+  test('honours the .env include flag', async () => {
+    const files = [path.join(root, '.env')];
+
+    const skipped = await scanSelectionToString({
+      rootDir: root,
+      includedFiles: files,
+      includeEnvFiles: false,
+      stripComments: false,
+    });
+    assert.ok(skipped.includes('[.env file - content skipped according to settings]'));
+    assert.ok(!skipped.includes('super-secret'));
+
+    const included = await scanSelectionToString({
+      rootDir: root,
+      includedFiles: files,
+      includeEnvFiles: true,
+      stripComments: false,
+    });
+    assert.ok(included.includes('SECRET=super-secret'));
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
+
+  test('marks non-text files and strips comments when requested', async () => {
+    const output = await scanSelectionToString({
+      rootDir: root,
+      includedFiles: [path.join(root, 'image.png'), path.join(root, 'code.js')],
+      includeEnvFiles: false,
+      stripComments: true,
+    });
+    assert.ok(output.includes('[Binary or non-text content not shown]'));
+    assert.ok(!output.includes('secret comment'));
+    assert.ok(output.includes('const x = 1;'));
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
+});
+
+describe('renderFileBody', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await makeFixture();
+  });
+
+  test('returns text content followed by a blank line', async () => {
+    const body = await renderFileBody(path.join(root, 'a.txt'), false, false);
+    assert.equal(body, 'hello world\n\n');
+    await fs.promises.rm(root, { recursive: true, force: true });
   });
 });

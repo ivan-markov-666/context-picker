@@ -11,6 +11,8 @@
 // Scanner
 export {
   scanDirectory,
+  scanSelectionToString,
+  renderFileBody,
   runScan,
   parseArgs,
   main as runScannerCli,
@@ -19,6 +21,7 @@ export {
 export type {
   ScanStats,
   ScanDirectoryOptions,
+  ScanSelectionOptions,
   ScannerCliOptions,
 } from './scanner';
 

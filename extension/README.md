@@ -4,10 +4,11 @@ Pick files and folders in a checkbox tree and generate their contents — or the
 project skeleton — for pasting into an LLM. Built on top of the
 [`directory-scanner`](../README.md) core.
 
-> **Status: M1 spike.** The checkbox tree, recursive include/exclude, simulated
-> "partial" folder badges, persistence and the "Generate" → new-editor-tab flow
-> work. Generation currently lists the selected file **paths**; the formatted
-> file **contents** (via the core's `scanSelectionToString`) land in M2.
+> **Status: M2 MVP.** The checkbox tree, recursive include/exclude, simulated
+> "partial" folder badges and persistence work. **Generate Contents** emits the
+> actual formatted file **contents** (via the core's `scanSelectionToString`),
+> **Copy Project Skeleton** emits the project tree (via `renderTree`), and output
+> can be sent to a new editor tab, the clipboard, or a file (see settings).
 
 ## Run it locally (no publishing needed)
 
@@ -27,11 +28,21 @@ project skeleton — for pasting into an LLM. Built on top of the
 | `npm run typecheck` | Type-check with `tsc --noEmit` |
 | `npm run package` | Produce a `.vsix` with `@vscode/vsce` |
 
+## Settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `projectContext.output` | `editor` | Where output goes: `editor` tab, `clipboard`, or `file` |
+| `projectContext.stripComments` | `false` | Strip comments from supported source files |
+| `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
+
 ## How it reuses the core
 
-The extension imports `isBlacklisted` / `DEFAULT_IGNORE` directly from
-`../src/blacklist.ts`; esbuild bundles those modules in, so there is a single
-source of truth and no need to publish the npm package first.
+The extension imports the core directly from `../src` — `scanSelectionToString`
+(scanner), `buildTree` / `renderTree` / `resolveRootName` (tree) and
+`isBlacklisted` / `DEFAULT_IGNORE` (blacklist). esbuild bundles those modules
+(and their `comment-bear` dependency) in, so there is a single source of truth
+and no need to publish the npm package first.
 
 ## Layout
 

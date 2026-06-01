@@ -39,6 +39,12 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "projectContext.copySkeleton",
+        "title": "Copy Project Skeleton",
+        "category": "Project Context",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "projectContext.refresh",
         "title": "Refresh",
         "category": "Project Context",
@@ -64,14 +70,19 @@
           "group": "navigation@1"
         },
         {
-          "command": "projectContext.refresh",
+          "command": "projectContext.copySkeleton",
           "when": "view == projectContext.tree",
           "group": "navigation@2"
         },
         {
-          "command": "projectContext.clear",
+          "command": "projectContext.refresh",
           "when": "view == projectContext.tree",
           "group": "navigation@3"
+        },
+        {
+          "command": "projectContext.clear",
+          "when": "view == projectContext.tree",
+          "group": "navigation@4"
         }
       ],
       "explorer/context": [
@@ -80,6 +91,27 @@
           "group": "9_projectContext"
         }
       ]
+    },
+    "configuration": {
+      "title": "Project Context",
+      "properties": {
+        "projectContext.output": {
+          "type": "string",
+          "enum": ["editor", "clipboard", "file"],
+          "default": "editor",
+          "description": "Where to send generated output: a new editor tab, the clipboard, or a saved file."
+        },
+        "projectContext.stripComments": {
+          "type": "boolean",
+          "default": false,
+          "description": "Strip comments from supported source files when generating contents."
+        },
+        "projectContext.includeEnvFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include the content of .env files (disabled by default to protect secrets)."
+        }
+      }
     }
   },
   "scripts": {

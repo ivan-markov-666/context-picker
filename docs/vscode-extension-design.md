@@ -317,13 +317,13 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 ---
 
 ## 10. Proposed milestones
-1. **M1 — Spike (½ day):** `yo code` scaffold in `extension/`, a static checkbox tree of the
-   workspace, confirm cascade behaviour on the target engine.
-2. **M2 — MVP (1 day):** selection model + persistence, `scanSelectionToString` in core,
-   "Generate Contents" + "Copy Skeleton" into a new editor tab, default ignores.
-   - **TODO (reminder):** bump the core's `comment-bear` dependency from `^1.1.0` to
-     `^1.2.0` (a 1.2.0 release is now available), update `package-lock.json`, and re-run
-     `npm test` to confirm comment stripping still works before wiring it into the extension.
+1. **M1 — Spike ✅ done:** scaffold in `extension/`, checkbox tree of the workspace, recursive
+   include/exclude, simulated partial badges, persistence, esbuild bundling of the core.
+2. **M2 — MVP ✅ done:** `scanSelectionToString` + shared `renderFileBody` in core (with tests);
+   "Generate Contents" now emits real file contents; "Copy Project Skeleton" via `renderTree`;
+   output sink setting (editor/clipboard/file) + `stripComments` / `includeEnvFiles` settings.
+   - ✅ Bumped the core's `comment-bear` dependency to `^1.2.0`, updated the lockfile, and
+     re-ran `npm test` (all green) before wiring it into the extension.
 3. **M3 — Polish (1–2 days):** settings, Explorer context menu, footer counts + partial-folder
    badges, icon, progress, integration tests.
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).

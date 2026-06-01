@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
 import { collectSelectedFiles } from './collect';
+// Reuse the directory-scanner core for the actual scanning/skeleton logic.
+import { scanSelectionToString } from '../../src/scanner';
+import { buildTree, renderTree, resolveRootName } from '../../src/tree';
+import { DEFAULT_IGNORE } from '../../src/blacklist';
 
 export function activate(context: vscode.ExtensionContext): void {
   const selection = new SelectionModel(context);
@@ -68,6 +71,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('projectContext.generate', () => generate(selection)),
 
+    vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton()),
+
     vscode.commands.registerCommand(
       'projectContext.addFromExplorer',
       (uri?: vscode.Uri, uris?: vscode.Uri[]) => {
@@ -86,10 +91,41 @@ export function deactivate(): void {
   // Nothing to clean up; subscriptions are disposed by VS Code.
 }
 
+type OutputSink = 'editor' | 'clipboard' | 'file';
+
+/** Sends the generated text to the configured destination. */
+async function deliver(text: string): Promise<void> {
+  const sink = vscode.workspace
+    .getConfiguration('projectContext')
+    .get<OutputSink>('output', 'editor');
+
+  if (sink === 'clipboard') {
+    await vscode.env.clipboard.writeText(text);
+    vscode.window.showInformationMessage('Project Context: copied to clipboard.');
+    return;
+  }
+
+  if (sink === 'file') {
+    const uri = await vscode.window.showSaveDialog({
+      saveLabel: 'Save context',
+      filters: { Text: ['txt', 'md'] },
+    });
+    if (!uri) {
+      return;
+    }
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf8'));
+    vscode.window.showInformationMessage(`Project Context: saved to ${uri.fsPath}.`);
+    return;
+  }
+
+  // Default: open in a new editor tab for review.
+  const doc = await vscode.workspace.openTextDocument({ content: text, language: 'markdown' });
+  await vscode.window.showTextDocument(doc, { preview: false });
+}
+
 /**
- * M1 spike: collect the selected files and open their relative paths in a new
- * editor tab. M2 will replace the body with the formatted file contents from
- * the directory-scanner core (`scanSelectionToString`).
+ * Collects the selected files and outputs their formatted contents via the
+ * directory-scanner core (same format as the CLI scanner).
  */
 async function generate(selection: SelectionModel): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
@@ -108,22 +144,44 @@ async function generate(selection: SelectionModel): Promise<void> {
     return;
   }
 
-  const relativeOf = (file: string): string => {
-    const folder = folders.find((f) => file.startsWith(f.uri.fsPath));
-    const base = folder ? folder.uri.fsPath : '';
-    return path.relative(base, file).replace(/\\/g, '/');
+  const cfg = vscode.workspace.getConfiguration('projectContext');
+  const rootDir = folders[0].uri.fsPath;
+
+  const text = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating…' },
+    () =>
+      scanSelectionToString({
+        rootDir,
+        includedFiles: files,
+        includeEnvFiles: cfg.get<boolean>('includeEnvFiles', false),
+        stripComments: cfg.get<boolean>('stripComments', false),
+      })
+  );
+
+  await deliver(text);
+  vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);
+}
+
+/**
+ * Renders the project skeleton (tree) of the first workspace folder, with the
+ * folder name as the root, ignoring node_modules/.git.
+ */
+async function copySkeleton(): Promise<void> {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) {
+    vscode.window.showWarningMessage('Project Context: open a folder first.');
+    return;
+  }
+
+  const folder = folders[0];
+  const children = await buildTree(folder.uri.fsPath, folder.uri.fsPath, {
+    blacklist: [...DEFAULT_IGNORE],
+  });
+  const tree = {
+    name: resolveRootName(folder.uri.fsPath),
+    isDirectory: true,
+    children,
   };
 
-  const header =
-    `# Project Context\n` +
-    `# ${files.length} file(s) selected\n` +
-    `# (M1 spike: file paths only — contents come in M2)\n\n`;
-  const body = files.map(relativeOf).sort().join('\n');
-
-  const doc = await vscode.workspace.openTextDocument({
-    content: header + body + '\n',
-    language: 'markdown',
-  });
-  await vscode.window.showTextDocument(doc, { preview: false });
-  vscode.window.showInformationMessage(`Project Context: ${files.length} file(s) selected.`);
+  await deliver(renderTree(tree));
 }
