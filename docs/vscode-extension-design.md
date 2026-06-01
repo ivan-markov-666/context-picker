@@ -319,6 +319,9 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
    workspace, confirm cascade behaviour on the target engine.
 2. **M2 — MVP (1 day):** selection model + persistence, `scanSelectionToString` in core,
    "Generate Contents" + "Copy Skeleton" into a new editor tab, default ignores.
+   - **TODO (reminder):** bump the core's `comment-bear` dependency from `^1.1.0` to
+     `^1.2.0` (a 1.2.0 release is now available), update `package-lock.json`, and re-run
+     `npm test` to confirm comment stripping still works before wiring it into the extension.
 3. **M3 — Polish (1–2 days):** settings, Explorer context menu, footer counts + partial-folder
    badges, icon, progress, integration tests.
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).
