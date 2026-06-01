@@ -4,8 +4,10 @@ import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
 import { collectSelectedFiles, collectAllFiles, summarizeSelection } from './collect';
 // Reuse the directory-scanner core for the actual scanning/skeleton logic.
-import { scanSelectionToString } from '../../src/scanner';
-import { buildTree, renderTree, resolveRootName } from '../../src/tree';
+// Import from the CLI-free core modules so the bundle never pulls in the
+// `scanner.ts`/`tree.ts` CLI entry points (shebang / `require.main` guard).
+import { scanSelectionToString } from '../../src/scan-core';
+import { buildTree, renderTree, resolveRootName } from '../../src/tree-core';
 import { DEFAULT_IGNORE } from '../../src/blacklist';
 
 export function activate(context: vscode.ExtensionContext): void {

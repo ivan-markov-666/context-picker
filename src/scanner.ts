@@ -2,9 +2,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Writable } from 'stream';
-import { stripCommentsFromFile } from './comment-stripper';
 import { readBlacklist, isBlacklisted } from './blacklist';
-import { isEnvFile, isTextFile, safeReadFile } from './file-utils';
+import { isEnvFile } from './file-utils';
+import { renderFileBody } from './scan-core';
+
+// Re-export the CLI-free scan helpers so existing importers of `./scanner`
+// (the library API and tests) keep working unchanged.
+export { renderFileBody, scanSelectionToString } from './scan-core';
+export type { ScanSelectionOptions } from './scan-core';
 
 /**
  * Statistics tracked while scanning.
@@ -139,76 +144,6 @@ export async function scanDirectory(options: ScanDirectoryOptions): Promise<void
       logger.error(`Unexpected error scanning directory ${dirPath}`);
     }
   }
-}
-
-/**
- * Renders the content block for a single file using the same markers as a full
- * scan: `.env` handling, the binary/non-text notice, and optional comment
- * stripping. Returns the body only — callers prepend the relative path line.
- *
- * @param filePath Absolute path to the file
- * @param includeEnvFiles Whether to include `.env` content
- * @param stripComments Whether to strip comments from supported files
- */
-export async function renderFileBody(
-  filePath: string,
-  includeEnvFiles: boolean,
-  stripComments: boolean
-): Promise<string> {
-  if (isEnvFile(filePath)) {
-    if (!includeEnvFiles) {
-      return `[.env file - content skipped according to settings]\n\n`;
-    }
-    const content = await safeReadFile(filePath);
-    return `### .env file content ###\n${content}\n### End of .env file ###\n\n`;
-  }
-
-  if (!isTextFile(filePath)) {
-    return `[Binary or non-text content not shown]\n\n`;
-  }
-
-  let content = await safeReadFile(filePath);
-  if (stripComments) {
-    content = stripCommentsFromFile(content, filePath);
-  }
-  return `${content}\n\n`;
-}
-
-/**
- * Options for {@link scanSelectionToString}.
- */
-export interface ScanSelectionOptions {
-  /** Base directory used to compute the relative path shown for each file. */
-  rootDir: string;
-  /** Absolute paths of the files to include, in any order. */
-  includedFiles: string[];
-  /** Whether to include the content of `.env` files. */
-  includeEnvFiles: boolean;
-  /** Whether to strip comments from supported source files. */
-  stripComments: boolean;
-}
-
-/**
- * Scans an explicit set of files (rather than walking a directory) and returns
- * the formatted output as a string, using the exact same per-file format as
- * {@link scanDirectory}. Files are emitted sorted by their relative path.
- *
- * This is the entry point used by editor integrations (e.g. the VS Code
- * extension) where the user has hand-picked the files to include.
- */
-export async function scanSelectionToString(options: ScanSelectionOptions): Promise<string> {
-  const { rootDir, includedFiles, includeEnvFiles, stripComments } = options;
-
-  const entries = includedFiles
-    .map((file) => ({ file, rel: path.relative(rootDir, file).replace(/\\/g, '/') }))
-    .sort((a, b) => a.rel.localeCompare(b.rel));
-
-  let output = '';
-  for (const { file, rel } of entries) {
-    const body = await renderFileBody(file, includeEnvFiles, stripComments);
-    output += `${rel}\n${body}`;
-  }
-  return output;
 }
 
 /**
