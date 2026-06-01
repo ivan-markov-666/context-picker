@@ -83,7 +83,7 @@ A dedicated container in the Activity Bar (its own icon), containing a checkbox 
 ```
  PROJECT CONTEXT                         [⟳ Refresh] [📋 Generate] [⋯]
  ▾ ☑ my-project
-   ▾ ☑ src
+   ▾ ☐ src              1/2   ← partially selected (badge shows the count)
        ☑ scanner.ts
        ☐ legacy.ts            ← excluded with one click
      ▸ ☑ utils                ← whole folder, recursively
@@ -95,6 +95,11 @@ A dedicated container in the Activity Bar (its own icon), containing a checkbox 
 
 Behaviour:
 - **Checkbox per node.** Checking a folder selects every descendant; unchecking clears them.
+- **Partial folders.** VS Code's tree checkboxes are **two-state only** (`Checked` /
+  `Unchecked`) — there is no native indeterminate/tri-state checkbox. To still convey "some
+  children selected", a partially-selected folder keeps its checkbox `Unchecked` and shows a
+  **count badge** in the item `description` (e.g. `1/2`) plus a distinct icon colour. This is
+  the faithful approximation of "indeterminate" within the current API (see §4.1).
 - Default state mirrors the CLI: `node_modules`, `.git`, anything in `blacklist.txt`/
   `.gitignore` start **unchecked/hidden**.
 - A status footer (view title or a `TreeItem`) shows the selected file count and an
@@ -102,8 +107,9 @@ Behaviour:
 - The selection is **persisted** in `workspaceState`, so it survives reloads.
 
 ### 3.2 Title-bar actions (on the view)
-- **Generate contents** → reads selected files via the core, outputs per the configured sink.
-- **Copy skeleton** → renders the tree of the selection (or whole project) and copies it.
+- **Generate contents** → reads selected files via the core and opens the result in a **new
+  editor tab** (an untitled document) for review (the chosen default output, see §4.3).
+- **Copy skeleton** → renders the tree of the selection (or whole project) into a new editor tab.
 - **Refresh**, **Select all**, **Clear selection**.
 
 ### 3.3 Explorer right-click (secondary, fast path)
@@ -132,16 +138,21 @@ This covers "I just want this one class/folder, fast" without opening the panel.
 | Output to a new tab | `workspace.openTextDocument({ content }) ` + `window.showTextDocument` |
 | Progress while scanning | `window.withProgress({ location: Notification })` |
 
-### 4.1 Checkbox cascade
-VS Code's TreeView checkboxes support parent↔child cascading. Two options:
-- `manageCheckboxStateManually: false` (default): VS Code auto-toggles children when a
-  parent is toggled. Simplest; good enough for the MVP.
-- `manageCheckboxStateManually: true`: we own the logic in `onDidChangeCheckboxState`
-  (cascade down to descendants, and recompute each ancestor as checked/partial/unchecked).
-  Needed if we want an "indeterminate/partial" look for partially-selected folders.
+### 4.1 Checkbox cascade & the "indeterminate" decision
+We use `manageCheckboxStateManually: true` and own the logic in `onDidChangeCheckboxState`:
+toggling a node cascades **down** to all descendants, and each ancestor is then recomputed.
 
-> Action item to verify during spiking: the exact default cascade semantics on the current
-> VS Code engine version we target (`engines.vscode`). The design works either way.
+**Important API constraint:** VS Code's `TreeItemCheckboxState` has only `Checked` and
+`Unchecked` — there is **no native indeterminate/tri-state** for tree checkboxes (confirmed
+against the current API; it has been a long-standing feature request). We therefore *simulate*
+the requested indeterminate state for partially-selected folders:
+- The folder checkbox stays `Unchecked` (it is not fully selected).
+- We append a **count badge** to the `TreeItem.description` (e.g. `3/8`) and use a distinct
+  `ThemeIcon` colour so the partial state is obvious at a glance.
+- "Select all under here" remains one click via the checkbox or a context action.
+
+If VS Code later adds a native tri-state, swapping our simulation for it is a localised change
+in `ProjectTreeProvider.getTreeItem`.
 
 ### 4.2 Selection model (`SelectionModel.ts`)
 Storing one boolean per file does not scale and breaks with lazy-loaded/unexpanded nodes.
@@ -166,7 +177,9 @@ of whether children are loaded. Persisted to `workspaceState` keyed by workspace
    gate, optional `stripCommentsFromFile`, `safeReadFile`.
 3. Concatenate using the same output format as the scanner (path header + content), or
    render a tree via `renderTree` for the skeleton action.
-4. Send to the configured sink (clipboard / new editor / file).
+4. Send to the configured sink. **Default: a new editor tab** — `workspace.openTextDocument`
+   then `window.showTextDocument`, so the user reviews the result before copying. `clipboard`
+   and `file` remain selectable via settings.
 
 ### 4.4 Core changes required (small)
 The core is mostly reusable as-is. We add **one** function to `src/index.ts` so the
@@ -236,7 +249,7 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
         "projectContext.stripComments": { "type": "boolean", "default": false },
         "projectContext.includeEnvFiles": { "type": "boolean", "default": false },
         "projectContext.output": {
-          "type": "string", "enum": ["clipboard", "editor", "file"], "default": "clipboard"
+          "type": "string", "enum": ["editor", "clipboard", "file"], "default": "editor"
         },
         "projectContext.respectGitignore": { "type": "boolean", "default": true },
         "projectContext.maxFileSizeKB": { "type": "number", "default": 512 }
@@ -305,17 +318,20 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 1. **M1 — Spike (½ day):** `yo code` scaffold in `extension/`, a static checkbox tree of the
    workspace, confirm cascade behaviour on the target engine.
 2. **M2 — MVP (1 day):** selection model + persistence, `scanSelectionToString` in core,
-   "Generate Contents" + "Copy Skeleton" to clipboard/editor, default ignores.
-3. **M3 — Polish (1–2 days):** settings, Explorer context menu, footer counts, icon,
-   progress, integration tests.
+   "Generate Contents" + "Copy Skeleton" into a new editor tab, default ignores.
+3. **M3 — Polish (1–2 days):** settings, Explorer context menu, footer counts + partial-folder
+   badges, icon, progress, integration tests.
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).
 
 ---
 
-### Open questions for you
-- Default output sink — **clipboard**, or open a **new editor tab**? (proposed: clipboard)
-- Should the tree show a **partial/indeterminate** state for partly-selected folders
-  (needs manual checkbox management), or is plain checked/unchecked enough for v1?
-- Extension display name — "Project Context", or something tied to the existing
-  "directory-scanner" brand?
-```
+## 11. Resolved decisions (v1)
+1. **Output sink → a new editor tab.** Generated contents and skeletons open in an untitled
+   editor document so the user can review them before copying. `clipboard` and `file` remain
+   available as settings.
+2. **Partial folders → simulated indeterminate.** Native tri-state checkboxes are not supported
+   by the VS Code API, so partially-selected folders are shown with an `Unchecked` checkbox
+   plus a `description` count badge (e.g. `3/8`) and a distinct icon. Implemented with
+   `manageCheckboxStateManually: true` (see §4.1).
+3. **Display name → deferred.** The extension uses the working name **"Project Context"** for
+   now; the final marketplace name is decided at publish time (M4).
