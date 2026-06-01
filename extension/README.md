@@ -4,11 +4,13 @@ Pick files and folders in a checkbox tree and generate their contents — or the
 project skeleton — for pasting into an LLM. Built on top of the
 [`directory-scanner`](../README.md) core.
 
-> **Status: M2 MVP.** The checkbox tree, recursive include/exclude, simulated
-> "partial" folder badges and persistence work. **Generate Contents** emits the
-> actual formatted file **contents** (via the core's `scanSelectionToString`),
-> **Copy Project Skeleton** emits the project tree (via `renderTree`), and output
-> can be sent to a new editor tab, the clipboard, or a file (see settings).
+> **Status: M3 polish.** Checkbox tree with recursive include/exclude, simulated
+> "partial" folder badges and persistence. **Generate Contents** emits the actual
+> formatted file **contents** (via the core's `scanSelectionToString`); **Copy
+> Project Skeleton** emits the project tree (via `renderTree`); a footer shows the
+> selected file count and approximate size; and the Explorer right-click menu has
+> quick **Copy Contents (with subfolders)** / **Copy Skeleton From Here** actions.
+> Output goes to a new editor tab, the clipboard, or a file (see settings).
 
 ## Run it locally (no publishing needed)
 
@@ -26,6 +28,7 @@ project skeleton — for pasting into an LLM. Built on top of the
 | `npm run build` | Bundle `src/` (+ the imported core) into `dist/extension.js` with esbuild |
 | `npm run watch` | Rebuild on change |
 | `npm run typecheck` | Type-check with `tsc --noEmit` |
+| `npm test` | Run the unit tests (SelectionModel + file collection) |
 | `npm run package` | Produce a `.vsix` with `@vscode/vsce` |
 
 ## Settings

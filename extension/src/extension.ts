@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
-import { collectSelectedFiles } from './collect';
+import { collectSelectedFiles, collectAllFiles, summarizeSelection } from './collect';
 // Reuse the directory-scanner core for the actual scanning/skeleton logic.
 import { scanSelectionToString } from '../../src/scanner';
 import { buildTree, renderTree, resolveRootName } from '../../src/tree';
@@ -18,19 +19,37 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(treeView);
 
-  function updateMessage(): void {
-    const { includes, excludes } = selection.stats();
+  // Footer with the selected file count and approximate size. The walk is async,
+  // so it is debounced and runs after the (snappy) tree refresh.
+  let countTimer: ReturnType<typeof setTimeout> | undefined;
+  async function updateCount(): Promise<void> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+      treeView.message = 'Open a folder to begin.';
+      return;
+    }
+    const summary = { files: 0, bytes: 0 };
+    for (const folder of folders) {
+      await summarizeSelection(folder.uri.fsPath, selection, summary);
+    }
     treeView.message =
-      includes || excludes
-        ? `Selection: ${includes} included / ${excludes} excluded path(s). Run "Generate Contents".`
+      summary.files > 0
+        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)}. Run "Generate Contents".`
         : 'Tick files and folders to include them, then run "Generate Contents".';
   }
-  updateMessage();
+  function scheduleCount(): void {
+    if (countTimer) {
+      clearTimeout(countTimer);
+    }
+    countTimer = setTimeout(() => {
+      countTimer = undefined;
+      void updateCount();
+    }, 350);
+  }
+  void updateCount();
 
-  // Re-render on the next tick: VS Code needs to finish applying the user's
-  // checkbox change before we recompute ancestor "partial" badges. Refreshing
-  // synchronously inside the event handler can be coalesced away, leaving parent
-  // folders without their badge.
+  // Re-render the tree on the next tick: VS Code needs to finish applying the
+  // user's checkbox change before we recompute ancestor "partial" badges.
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   function scheduleRefresh(): void {
     if (refreshTimer) {
@@ -39,12 +58,9 @@ export function activate(context: vscode.ExtensionContext): void {
     refreshTimer = setTimeout(() => {
       refreshTimer = undefined;
       provider.refresh();
-      updateMessage();
     }, 0);
   }
 
-  // React to the user (un)checking a node: update the model, then refresh so
-  // descendants and ancestor badges recompute.
   treeView.onDidChangeCheckboxState(
     (event) => {
       for (const [node, state] of event.items) {
@@ -55,18 +71,22 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
       scheduleRefresh();
+      scheduleCount();
     },
     undefined,
     context.subscriptions
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('projectContext.refresh', () => provider.refresh()),
+    vscode.commands.registerCommand('projectContext.refresh', () => {
+      provider.refresh();
+      void updateCount();
+    }),
 
     vscode.commands.registerCommand('projectContext.clear', () => {
       selection.clear();
       provider.refresh();
-      updateMessage();
+      void updateCount();
     }),
 
     vscode.commands.registerCommand('projectContext.generate', () => generate(selection)),
@@ -81,14 +101,32 @@ export function activate(context: vscode.ExtensionContext): void {
           selection.include(target.fsPath);
         }
         provider.refresh();
-        updateMessage();
+        scheduleCount();
       }
+    ),
+
+    vscode.commands.registerCommand('projectContext.copyContentsHere', (uri?: vscode.Uri) =>
+      copyContentsHere(uri)
+    ),
+
+    vscode.commands.registerCommand('projectContext.skeletonHere', (uri?: vscode.Uri) =>
+      skeletonHere(uri)
     )
   );
 }
 
 export function deactivate(): void {
   // Nothing to clean up; subscriptions are disposed by VS Code.
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 type OutputSink = 'editor' | 'clipboard' | 'file';
@@ -123,10 +161,25 @@ async function deliver(text: string): Promise<void> {
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
-/**
- * Collects the selected files and outputs their formatted contents via the
- * directory-scanner core (same format as the CLI scanner).
- */
+function readScanConfig(): { includeEnvFiles: boolean; stripComments: boolean } {
+  const cfg = vscode.workspace.getConfiguration('projectContext');
+  return {
+    includeEnvFiles: cfg.get<boolean>('includeEnvFiles', false),
+    stripComments: cfg.get<boolean>('stripComments', false),
+  };
+}
+
+async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void> {
+  const { includeEnvFiles, stripComments } = readScanConfig();
+  const text = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating…' },
+    () => scanSelectionToString({ rootDir, includedFiles: files, includeEnvFiles, stripComments })
+  );
+  await deliver(text);
+  vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);
+}
+
+/** Collects the checkbox selection and outputs the formatted file contents. */
 async function generate(selection: SelectionModel): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
@@ -144,44 +197,47 @@ async function generate(selection: SelectionModel): Promise<void> {
     return;
   }
 
-  const cfg = vscode.workspace.getConfiguration('projectContext');
-  const rootDir = folders[0].uri.fsPath;
-
-  const text = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating…' },
-    () =>
-      scanSelectionToString({
-        rootDir,
-        includedFiles: files,
-        includeEnvFiles: cfg.get<boolean>('includeEnvFiles', false),
-        stripComments: cfg.get<boolean>('stripComments', false),
-      })
-  );
-
-  await deliver(text);
-  vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);
+  await scanFilesToOutput(folders[0].uri.fsPath, files);
 }
 
-/**
- * Renders the project skeleton (tree) of the first workspace folder, with the
- * folder name as the root, ignoring node_modules/.git.
- */
+/** Renders the project skeleton of the first workspace folder. */
 async function copySkeleton(): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
     vscode.window.showWarningMessage('Project Context: open a folder first.');
     return;
   }
+  await deliverSkeleton(folders[0].uri.fsPath);
+}
 
-  const folder = folders[0];
-  const children = await buildTree(folder.uri.fsPath, folder.uri.fsPath, {
-    blacklist: [...DEFAULT_IGNORE],
-  });
-  const tree = {
-    name: resolveRootName(folder.uri.fsPath),
-    isDirectory: true,
-    children,
-  };
+/** Explorer quick action: output the contents of the clicked file/folder. */
+async function copyContentsHere(uri?: vscode.Uri): Promise<void> {
+  if (!uri) {
+    vscode.window.showWarningMessage('Project Context: right-click a file or folder in the Explorer.');
+    return;
+  }
+  const files: string[] = [];
+  await collectAllFiles(uri.fsPath, files);
+  if (files.length === 0) {
+    vscode.window.showInformationMessage('Project Context: no files found here.');
+    return;
+  }
+  const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
+  const rootDir = wsFolder ? wsFolder.uri.fsPath : path.dirname(uri.fsPath);
+  await scanFilesToOutput(rootDir, files);
+}
 
+/** Explorer quick action: output the skeleton rooted at the clicked folder. */
+async function skeletonHere(uri?: vscode.Uri): Promise<void> {
+  if (!uri) {
+    vscode.window.showWarningMessage('Project Context: right-click a folder in the Explorer.');
+    return;
+  }
+  await deliverSkeleton(uri.fsPath);
+}
+
+async function deliverSkeleton(dir: string): Promise<void> {
+  const children = await buildTree(dir, dir, { blacklist: [...DEFAULT_IGNORE] });
+  const tree = { name: resolveRootName(dir), isDirectory: true, children };
   await deliver(renderTree(tree));
 }

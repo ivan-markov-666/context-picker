@@ -325,8 +325,12 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
    output sink setting (editor/clipboard/file) + `stripComments` / `includeEnvFiles` settings.
    - ✅ Bumped the core's `comment-bear` dependency to `^1.2.0`, updated the lockfile, and
      re-ran `npm test` (all green) before wiring it into the extension.
-3. **M3 — Polish (1–2 days):** settings, Explorer context menu, footer counts + partial-folder
-   badges, icon, progress, integration tests.
+3. **M3 — Polish (mostly done):** ✅ settings, ✅ progress notifications, ✅ footer with selected
+   file count + approximate size, ✅ Explorer quick actions ("Copy Contents (with subfolders)",
+   "Copy Skeleton From Here"), ✅ checklist icon, ✅ unit tests for the file-collection helpers.
+   - Remaining (optional): end-to-end integration tests with `@vscode/test-electron`, and
+     extracting a CLI-free "core" module so the extension bundle no longer pulls in the
+     `require.main`/shebang CLI entry of `scanner.ts`/`tree.ts` (harmless today, but cleaner).
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).
 
 ---

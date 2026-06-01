@@ -60,6 +60,16 @@
         "command": "projectContext.addFromExplorer",
         "title": "Add to Project Context",
         "category": "Project Context"
+      },
+      {
+        "command": "projectContext.copyContentsHere",
+        "title": "Copy Contents (with subfolders)",
+        "category": "Project Context"
+      },
+      {
+        "command": "projectContext.skeletonHere",
+        "title": "Copy Skeleton From Here",
+        "category": "Project Context"
       }
     ],
     "menus": {
@@ -88,7 +98,16 @@
       "explorer/context": [
         {
           "command": "projectContext.addFromExplorer",
-          "group": "9_projectContext"
+          "group": "9_projectContext@1"
+        },
+        {
+          "command": "projectContext.copyContentsHere",
+          "group": "9_projectContext@2"
+        },
+        {
+          "command": "projectContext.skeletonHere",
+          "when": "explorerResourceIsFolder",
+          "group": "9_projectContext@3"
         }
       ]
     },
