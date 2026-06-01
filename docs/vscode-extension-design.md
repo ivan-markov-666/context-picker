@@ -308,6 +308,7 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 ## 9. Risks & mitigations
 | Risk | Mitigation |
 | --- | --- |
+| Bundling `comment-bear` breaks the build (its source has literal `@license */` text that closes esbuild's inlined "Bundled license information" comment early → invalid JS) | Build with `legalComments: 'external'` so license notices go to `dist/extension.js.LEGAL.txt` instead of being inlined. (Discovered in M2; `node --check dist/extension.js` is a quick guard.) |
 | Large selections produce huge pastes | Live byte/file count footer + `maxFileSizeKB` cap + binary skip (reuse `isTextFile`) |
 | Accidentally leaking `.env`/secrets | `.env` skipped by default (reuse existing logic); explicit opt-in toggle |
 | Performance on big repos | Lazy `getChildren`; selection model independent of expansion; `withProgress` during generation |

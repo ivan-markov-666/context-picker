@@ -15,6 +15,11 @@ const options = {
   platform: 'node',
   target: 'node18',
   sourcemap: true,
+  // Move third-party license comments to a side-car file. Inlining them breaks
+  // the bundle here, because comment-bear's source contains literal `@license */`
+  // text whose `*/` prematurely closes esbuild's "Bundled license information"
+  // comment block, producing invalid JavaScript.
+  legalComments: 'external',
   logLevel: 'info',
 };
 
