@@ -45,6 +45,10 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<FsNode> {
           : vscode.TreeItemCheckboxState.Unchecked;
       if (partial) {
         item.description = '◍ partial';
+        item.tooltip = 'Some items in this folder are selected. Tick to select all of them.';
+        // VS Code has no tri-state checkbox, so also colour the folder icon to
+        // make the partial state unmistakable.
+        item.iconPath = new vscode.ThemeIcon('folder', new vscode.ThemeColor('charts.yellow'));
       }
     } else {
       item.checkboxState = selected
