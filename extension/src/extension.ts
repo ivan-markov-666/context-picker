@@ -97,8 +97,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('projectContext.refresh', () => {
-      provider.refresh();
-      void updateCount();
+      scheduleRefresh();
+      scheduleCount();
     }),
 
     vscode.commands.registerCommand('projectContext.enableStripComments', async () => {
@@ -113,8 +113,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('projectContext.clear', () => {
       selection.clear();
-      provider.refresh();
-      void updateCount();
+      scheduleRefresh();
+      scheduleCount();
     }),
 
     vscode.commands.registerCommand('projectContext.generate', () => generate(selection)),
@@ -128,7 +128,7 @@ export function activate(context: vscode.ExtensionContext): void {
         for (const target of targets) {
           selection.include(target.fsPath);
         }
-        provider.refresh();
+        scheduleRefresh();
         scheduleCount();
       }
     ),
