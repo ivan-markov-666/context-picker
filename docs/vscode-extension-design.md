@@ -351,5 +351,8 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
    in this folder"). Implemented with `manageCheckboxStateManually: true` (see §4.1). Exact
    counts (e.g. `3/8`) are deferred: `getTreeItem` is synchronous and a precise count needs a
    filesystem walk, so it requires precomputed/cached data (a later enhancement).
-3. **Display name → deferred.** The extension uses the working name **"Project Context"** for
-   now; the final marketplace name is decided at publish time (M4).
+3. **Display name → "Context Picker".** Chosen for M4 (the marketplace landscape is crowded with
+   "copy for LLM" tools; "Context Kit" already does almost the same, so we avoid it). Plan:
+   `displayName: "Context Picker"`, package `name: "context-picker"`; the internal command/config
+   prefix stays `projectContext` (invisible to users, avoids a risky mass-rename). Final id is
+   `<publisher>.context-picker`.
