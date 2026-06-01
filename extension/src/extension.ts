@@ -207,15 +207,25 @@ function readScanConfig(): { includeEnvFiles: boolean; stripComments: boolean } 
 
 async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void> {
   const { includeEnvFiles, stripComments } = readScanConfig();
+
+  let cancelled = false;
   const text = await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: 'Project Context: generating' },
-    (progress) => {
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Project Context: generating',
+      cancellable: true,
+    },
+    (progress, token) => {
+      token.onCancellationRequested(() => {
+        cancelled = true;
+      });
       let lastPct = 0;
       return scanSelectionToString({
         rootDir,
         includedFiles: files,
         includeEnvFiles,
         stripComments,
+        isCancelled: () => token.isCancellationRequested,
         onProgress: (done, total) => {
           const pct = Math.floor((done / total) * 100);
           progress.report({ increment: pct - lastPct, message: `${done}/${total} files (${pct}%)` });
@@ -224,6 +234,12 @@ async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void
       });
     }
   );
+
+  if (cancelled) {
+    vscode.window.showInformationMessage('Project Context: generation cancelled.');
+    return;
+  }
+
   await deliver(text);
   vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);
 }

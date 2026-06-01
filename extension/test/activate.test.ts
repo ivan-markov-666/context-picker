@@ -36,7 +36,13 @@ function makeFakeVscode(): any {
       showInformationMessage() {},
       showWarningMessage() {},
       showErrorMessage() {},
-      withProgress: (_opts: unknown, task: () => unknown) => Promise.resolve(task()),
+      withProgress: (_opts: unknown, task: (p: unknown, t: unknown) => unknown) =>
+        Promise.resolve(
+          task(
+            { report() {} },
+            { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) }
+          )
+        ),
     },
     commands: {
       registerCommand: (id: string) => {

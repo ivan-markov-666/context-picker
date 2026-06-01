@@ -248,6 +248,33 @@ describe('scanSelectionToString', () => {
 
     await fs.promises.rm(root, { recursive: true, force: true });
   });
+
+  test('stops early when cancelled and returns only the partial output', async () => {
+    const files = [
+      path.join(root, 'a.txt'),
+      path.join(root, 'code.js'),
+      path.join(root, 'sub', 'b.md'),
+    ];
+    let processed = 0;
+    const output = await scanSelectionToString({
+      rootDir: root,
+      includedFiles: files,
+      includeEnvFiles: false,
+      stripComments: false,
+      onProgress: () => {
+        processed++;
+      },
+      // Cancel after the first file has been processed.
+      isCancelled: () => processed >= 1,
+    });
+
+    assert.equal(processed, 1);
+    assert.ok(output.includes('a.txt'));
+    assert.ok(output.includes('hello world'));
+    assert.ok(!output.includes('code.js'), 'should not process files after cancellation');
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
 });
 
 describe('renderFileBody', () => {

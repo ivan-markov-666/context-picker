@@ -52,6 +52,11 @@ export interface ScanSelectionOptions {
    * number of files done and the total. Lets callers render a progress bar.
    */
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Optional cancellation check, consulted before each file. When it returns
+   * true the scan stops early and returns the partial output gathered so far.
+   */
+  isCancelled?: () => boolean;
 }
 
 /**
@@ -65,7 +70,8 @@ export interface ScanSelectionOptions {
  * point (shebang / `require.main` guard) of `scanner.ts`.
  */
 export async function scanSelectionToString(options: ScanSelectionOptions): Promise<string> {
-  const { rootDir, includedFiles, includeEnvFiles, stripComments, onProgress } = options;
+  const { rootDir, includedFiles, includeEnvFiles, stripComments, onProgress, isCancelled } =
+    options;
 
   const entries = includedFiles
     .map((file) => ({ file, rel: path.relative(rootDir, file).replace(/\\/g, '/') }))
@@ -75,6 +81,9 @@ export async function scanSelectionToString(options: ScanSelectionOptions): Prom
   let done = 0;
   let output = '';
   for (const { file, rel } of entries) {
+    if (isCancelled?.()) {
+      break;
+    }
     const body = await renderFileBody(file, includeEnvFiles, stripComments);
     output += `${rel}\n${body}`;
     done++;
