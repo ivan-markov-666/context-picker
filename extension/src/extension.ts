@@ -34,10 +34,14 @@ export function activate(context: vscode.ExtensionContext): void {
     for (const folder of folders) {
       await summarizeSelection(folder.uri.fsPath, selection, summary);
     }
+    const strip = vscode.workspace
+      .getConfiguration('projectContext')
+      .get<boolean>('stripComments', false);
+    const commentsNote = strip ? 'comments: stripped' : 'comments: kept';
     treeView.message =
       summary.files > 0
-        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)}. Run "Generate Contents".`
-        : 'Tick files and folders to include them, then run "Generate Contents".';
+        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)} · ${commentsNote}. Run "Generate Contents".`
+        : `Tick files and folders to include them · ${commentsNote}.`;
   }
   function scheduleCount(): void {
     if (countTimer) {
@@ -79,9 +83,31 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions
   );
 
+  // Keep the footer in sync if the strip-comments setting changes (e.g. via the
+  // Settings UI or the toggle button).
+  vscode.workspace.onDidChangeConfiguration(
+    (event) => {
+      if (event.affectsConfiguration('projectContext.stripComments')) {
+        void updateCount();
+      }
+    },
+    undefined,
+    context.subscriptions
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand('projectContext.refresh', () => {
       provider.refresh();
+      void updateCount();
+    }),
+
+    vscode.commands.registerCommand('projectContext.enableStripComments', async () => {
+      await setStripComments(true);
+      void updateCount();
+    }),
+
+    vscode.commands.registerCommand('projectContext.disableStripComments', async () => {
+      await setStripComments(false);
       void updateCount();
     }),
 
@@ -119,6 +145,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   // Nothing to clean up; subscriptions are disposed by VS Code.
+}
+
+/** Persists the strip-comments setting (workspace scope when a folder is open). */
+async function setStripComments(value: boolean): Promise<void> {
+  const target = vscode.workspace.workspaceFolders?.length
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+  await vscode.workspace.getConfiguration('projectContext').update('stripComments', value, target);
 }
 
 function formatBytes(bytes: number): string {

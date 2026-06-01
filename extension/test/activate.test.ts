@@ -46,12 +46,14 @@ function makeFakeVscode(): any {
     },
     workspace: {
       workspaceFolders: undefined,
-      getConfiguration: () => ({ get: (_k: string, d: unknown) => d }),
+      getConfiguration: () => ({ get: (_k: string, d: unknown) => d, update: () => Promise.resolve() }),
+      onDidChangeConfiguration: () => ({ dispose() {} }),
     },
     env: { clipboard: { writeText: () => Promise.resolve() } },
     TreeItemCheckboxState: { Unchecked: 0, Checked: 1 },
     TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
     ProgressLocation: { Notification: 15 },
+    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   };
 }
 
@@ -102,6 +104,8 @@ describe('extension activate() (built bundle)', () => {
     const expected = [
       'projectContext.generate',
       'projectContext.copySkeleton',
+      'projectContext.enableStripComments',
+      'projectContext.disableStripComments',
       'projectContext.refresh',
       'projectContext.clear',
       'projectContext.addFromExplorer',

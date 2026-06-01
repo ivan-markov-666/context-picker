@@ -39,6 +39,9 @@ project skeleton — for pasting into an LLM. Built on top of the
 | `projectContext.stripComments` | `false` | Strip comments from supported source files |
 | `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
 
+`stripComments` also has a **one-click toggle** in the view's title bar (the comment
+icon); the footer shows the current state (`comments: stripped` / `comments: kept`).
+
 ## How it reuses the core
 
 The extension imports the core directly from `../src` — `scanSelectionToString`

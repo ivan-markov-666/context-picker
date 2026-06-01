@@ -45,6 +45,18 @@
         "icon": "$(list-tree)"
       },
       {
+        "command": "projectContext.enableStripComments",
+        "title": "Strip Comments: off (click to enable)",
+        "category": "Project Context",
+        "icon": "$(comment)"
+      },
+      {
+        "command": "projectContext.disableStripComments",
+        "title": "Strip Comments: on (click to disable)",
+        "category": "Project Context",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "projectContext.refresh",
         "title": "Refresh",
         "category": "Project Context",
@@ -74,6 +86,16 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "projectContext.enableStripComments",
+          "when": "view == projectContext.tree && !config.projectContext.stripComments",
+          "group": "navigation@0"
+        },
+        {
+          "command": "projectContext.disableStripComments",
+          "when": "view == projectContext.tree && config.projectContext.stripComments",
+          "group": "navigation@0"
+        },
         {
           "command": "projectContext.generate",
           "when": "view == projectContext.tree",
