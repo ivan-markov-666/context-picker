@@ -24,6 +24,22 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   updateMessage();
 
+  // Re-render on the next tick: VS Code needs to finish applying the user's
+  // checkbox change before we recompute ancestor "partial" badges. Refreshing
+  // synchronously inside the event handler can be coalesced away, leaving parent
+  // folders without their badge.
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  function scheduleRefresh(): void {
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+    }
+    refreshTimer = setTimeout(() => {
+      refreshTimer = undefined;
+      provider.refresh();
+      updateMessage();
+    }, 0);
+  }
+
   // React to the user (un)checking a node: update the model, then refresh so
   // descendants and ancestor badges recompute.
   treeView.onDidChangeCheckboxState(
@@ -35,8 +51,7 @@ export function activate(context: vscode.ExtensionContext): void {
           selection.exclude(node.fsPath);
         }
       }
-      provider.refresh();
-      updateMessage();
+      scheduleRefresh();
     },
     undefined,
     context.subscriptions

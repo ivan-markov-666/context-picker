@@ -11,5 +11,8 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true
   },
+  "ts-node": {
+    "transpileOnly": true
+  },
   "include": ["src/**/*.ts"]
 }

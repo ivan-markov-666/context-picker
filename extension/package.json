@@ -87,12 +87,14 @@
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit",
+    "test": "node --require ts-node/register --test test/*.test.ts",
     "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "@types/vscode": "^1.84.0",
     "esbuild": "^0.20.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.5",
     "@vscode/vsce": "^2.24.0"
   }
