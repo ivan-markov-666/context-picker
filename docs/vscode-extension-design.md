@@ -328,9 +328,14 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 3. **M3 — Polish (mostly done):** ✅ settings, ✅ progress notifications, ✅ footer with selected
    file count + approximate size, ✅ Explorer quick actions ("Copy Contents (with subfolders)",
    "Copy Skeleton From Here"), ✅ checklist icon, ✅ unit tests for the file-collection helpers.
-   - Remaining (optional): end-to-end integration tests with `@vscode/test-electron`, and
-     extracting a CLI-free "core" module so the extension bundle no longer pulls in the
-     `require.main`/shebang CLI entry of `scanner.ts`/`tree.ts` (harmless today, but cleaner).
+   - ✅ Extracted CLI-free core modules (`scan-core.ts`, `tree-core.ts`) so the extension
+     bundle no longer pulls in the `require.main`/shebang CLI entry of `scanner.ts`/`tree.ts`
+     (verified: zero `require.main` references in the bundle).
+   - ✅ Added an activation smoke test that loads the *built bundle* with a mocked `vscode`
+     and asserts `activate()` registers the view + commands (catches bundle-level breakage
+     like the license-comment issue, headless, no Electron download).
+   - Remaining (optional): full UI-level end-to-end tests with `@vscode/test-electron`
+     (drives a real VS Code window — heavier; the smoke test already covers activation).
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).
 
 ---

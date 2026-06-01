@@ -138,7 +138,7 @@
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --require ts-node/register --test test/*.test.ts",
+    "test": "npm run build && node --require ts-node/register --test test/*.test.ts",
     "package": "vsce package"
   },
   "devDependencies": {

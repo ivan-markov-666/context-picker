@@ -28,7 +28,7 @@ project skeleton — for pasting into an LLM. Built on top of the
 | `npm run build` | Bundle `src/` (+ the imported core) into `dist/extension.js` with esbuild |
 | `npm run watch` | Rebuild on change |
 | `npm run typecheck` | Type-check with `tsc --noEmit` |
-| `npm test` | Run the unit tests (SelectionModel + file collection) |
+| `npm test` | Build, then run the tests (SelectionModel, file collection, and an activation smoke test that loads the built bundle with a mocked `vscode`) |
 | `npm run package` | Produce a `.vsix` with `@vscode/vsce` |
 
 ## Settings
