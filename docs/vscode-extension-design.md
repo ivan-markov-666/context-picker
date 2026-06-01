@@ -147,9 +147,11 @@ toggling a node cascades **down** to all descendants, and each ancestor is then 
 against the current API; it has been a long-standing feature request). We therefore *simulate*
 the requested indeterminate state for partially-selected folders:
 - The folder checkbox stays `Unchecked` (it is not fully selected).
-- We append a **count badge** to the `TreeItem.description` (e.g. `3/8`) and use a distinct
-  `ThemeIcon` colour so the partial state is obvious at a glance.
-- "Select all under here" remains one click via the checkbox or a context action.
+- We add a `◍ partial` badge to the `TreeItem.description` and a yellow `ThemeIcon('folder', …)`
+  so the partial state is obvious at a glance.
+- "Select all under here" remains one click on the (unchecked) checkbox.
+- Note: `getTreeItem` is synchronous, so the badge cannot do a live filesystem count; an exact
+  `n/m` count would need precomputed data (future enhancement).
 
 If VS Code later adds a native tri-state, swapping our simulation for it is a localised change
 in `ProjectTreeProvider.getTreeItem`.
@@ -332,9 +334,12 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 1. **Output sink → a new editor tab.** Generated contents and skeletons open in an untitled
    editor document so the user can review them before copying. `clipboard` and `file` remain
    available as settings.
-2. **Partial folders → simulated indeterminate.** Native tri-state checkboxes are not supported
-   by the VS Code API, so partially-selected folders are shown with an `Unchecked` checkbox
-   plus a `description` count badge (e.g. `3/8`) and a distinct icon. Implemented with
-   `manageCheckboxStateManually: true` (see §4.1).
+2. **Partial folders → simulated indeterminate.** Confirmed in testing that the VS Code API has
+   no tri-state checkbox, so a partially-selected folder keeps an `Unchecked` checkbox and is
+   marked with a `◍ partial` `description` badge **and a yellow folder icon** (chosen over a
+   "checked + (partial)" look so that one click on the checkbox still means "select everything
+   in this folder"). Implemented with `manageCheckboxStateManually: true` (see §4.1). Exact
+   counts (e.g. `3/8`) are deferred: `getTreeItem` is synchronous and a precise count needs a
+   filesystem walk, so it requires precomputed/cached data (a later enhancement).
 3. **Display name → deferred.** The extension uses the working name **"Project Context"** for
    now; the final marketplace name is decided at publish time (M4).
