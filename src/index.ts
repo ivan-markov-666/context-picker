@@ -13,6 +13,7 @@ export {
   scanDirectory,
   scanSelectionToString,
   renderFileBody,
+  stripBlankLines,
   runScan,
   parseArgs,
   main as runScannerCli,

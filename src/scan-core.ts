@@ -10,11 +10,13 @@ import { isEnvFile, isTextFile, safeReadFile } from './file-utils';
  * @param filePath Absolute path to the file
  * @param includeEnvFiles Whether to include `.env` content
  * @param stripComments Whether to strip comments from supported files
+ * @param removeBlankLines Whether to drop blank/whitespace-only lines (reduces size)
  */
 export async function renderFileBody(
   filePath: string,
   includeEnvFiles: boolean,
-  stripComments: boolean
+  stripComments: boolean,
+  removeBlankLines = false
 ): Promise<string> {
   if (isEnvFile(filePath)) {
     if (!includeEnvFiles) {
@@ -32,7 +34,18 @@ export async function renderFileBody(
   if (stripComments) {
     content = stripCommentsFromFile(content, filePath);
   }
+  if (removeBlankLines) {
+    content = stripBlankLines(content);
+  }
   return `${content}\n\n`;
+}
+
+/** Removes blank / whitespace-only lines from text (to reduce LLM context size). */
+export function stripBlankLines(content: string): string {
+  return content
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .join('\n');
 }
 
 /**
@@ -47,6 +60,8 @@ export interface ScanSelectionOptions {
   includeEnvFiles: boolean;
   /** Whether to strip comments from supported source files. */
   stripComments: boolean;
+  /** Whether to drop blank/whitespace-only lines from file content. */
+  removeBlankLines?: boolean;
   /**
    * Optional progress callback, invoked after each file is processed with the
    * number of files done and the total. Lets callers render a progress bar.
@@ -70,8 +85,15 @@ export interface ScanSelectionOptions {
  * point (shebang / `require.main` guard) of `scanner.ts`.
  */
 export async function scanSelectionToString(options: ScanSelectionOptions): Promise<string> {
-  const { rootDir, includedFiles, includeEnvFiles, stripComments, onProgress, isCancelled } =
-    options;
+  const {
+    rootDir,
+    includedFiles,
+    includeEnvFiles,
+    stripComments,
+    removeBlankLines = false,
+    onProgress,
+    isCancelled,
+  } = options;
 
   const entries = includedFiles
     .map((file) => ({ file, rel: path.relative(rootDir, file).replace(/\\/g, '/') }))
@@ -84,7 +106,7 @@ export async function scanSelectionToString(options: ScanSelectionOptions): Prom
     if (isCancelled?.()) {
       break;
     }
-    const body = await renderFileBody(file, includeEnvFiles, stripComments);
+    const body = await renderFileBody(file, includeEnvFiles, stripComments, removeBlankLines);
     output += `${rel}\n${body}`;
     done++;
     onProgress?.(done, total);

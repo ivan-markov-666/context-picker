@@ -11,7 +11,8 @@ import { SelectionModel } from './SelectionModel';
 export async function collectSelectedFiles(
   root: string,
   selection: SelectionModel,
-  out: string[]
+  out: string[],
+  isIgnored: (fsPath: string, isDirectory: boolean) => boolean = () => false
 ): Promise<void> {
   let entries: fs.Dirent[];
   try {
@@ -21,15 +22,15 @@ export async function collectSelectedFiles(
   }
 
   for (const entry of entries) {
-    if (isBlacklisted(entry.name, DEFAULT_IGNORE)) {
-      continue;
-    }
-    if (entry.isSymbolicLink()) {
+    if (isBlacklisted(entry.name, DEFAULT_IGNORE) || entry.isSymbolicLink()) {
       continue;
     }
     const full = path.join(root, entry.name);
+    if (isIgnored(full, entry.isDirectory())) {
+      continue;
+    }
     if (entry.isDirectory()) {
-      await collectSelectedFiles(full, selection, out);
+      await collectSelectedFiles(full, selection, out, isIgnored);
     } else if (entry.isFile() && selection.isSelected(full)) {
       out.push(full);
     }
@@ -49,7 +50,8 @@ export interface SelectionSummary {
 export async function summarizeSelection(
   root: string,
   selection: SelectionModel,
-  acc: SelectionSummary = { files: 0, bytes: 0 }
+  acc: SelectionSummary = { files: 0, bytes: 0 },
+  isIgnored: (fsPath: string, isDirectory: boolean) => boolean = () => false
 ): Promise<SelectionSummary> {
   let entries: fs.Dirent[];
   try {
@@ -63,8 +65,11 @@ export async function summarizeSelection(
       continue;
     }
     const full = path.join(root, entry.name);
+    if (isIgnored(full, entry.isDirectory())) {
+      continue;
+    }
     if (entry.isDirectory()) {
-      await summarizeSelection(full, selection, acc);
+      await summarizeSelection(full, selection, acc, isIgnored);
     } else if (entry.isFile() && selection.isSelected(full)) {
       acc.files++;
       try {
@@ -83,7 +88,11 @@ export async function summarizeSelection(
  * checkbox selection. Used by the Explorer "from here" quick actions. A file
  * target yields just that file; a directory is walked recursively.
  */
-export async function collectAllFiles(target: string, out: string[]): Promise<void> {
+export async function collectAllFiles(
+  target: string,
+  out: string[],
+  isIgnored: (fsPath: string, isDirectory: boolean) => boolean = () => false
+): Promise<void> {
   let stat: fs.Stats;
   try {
     stat = await fs.promises.stat(target);
@@ -111,8 +120,11 @@ export async function collectAllFiles(target: string, out: string[]): Promise<vo
       continue;
     }
     const full = path.join(target, entry.name);
+    if (isIgnored(full, entry.isDirectory())) {
+      continue;
+    }
     if (entry.isDirectory()) {
-      await collectAllFiles(full, out);
+      await collectAllFiles(full, out, isIgnored);
     } else if (entry.isFile()) {
       out.push(full);
     }

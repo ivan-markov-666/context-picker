@@ -18,6 +18,10 @@ just the directory tree) to paste into any AI assistant or large language model.
   name as the root.
 - **Optional comment stripping** — one-click toggle to remove comments from
   supported languages, so the paste is smaller and focused on code.
+- **Remove blank lines** — one-click toggle to drop empty lines from the output,
+  shrinking the context further.
+- **Respect `.gitignore`** — files and folders matched by your `.gitignore` are
+  hidden by default (in the tree, generation and skeleton); a toggle reveals them.
 - **Skip secrets** — `.env` file contents are excluded by default.
 - **A footer** shows how many files are selected and the approximate size, so you
   know how big the paste will be before you generate.
@@ -45,10 +49,13 @@ Prefer a quick one-off? Right-click a file or folder in the Explorer and choose
 | --- | --- | --- |
 | `projectContext.output` | `editor` | Where output goes: a new `editor` tab, the `clipboard`, or a `file` |
 | `projectContext.stripComments` | `false` | Strip comments from supported source files |
+| `projectContext.removeBlankLines` | `false` | Drop blank/whitespace-only lines from generated content |
+| `projectContext.respectGitignore` | `true` | Hide files/folders matched by the workspace `.gitignore` |
 | `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
 
-Comment stripping also has a one-click toggle in the panel's title bar; the
-footer shows whether comments are currently stripped or kept.
+Comment stripping, blank-line removal and `.gitignore` filtering each have a
+one-click toggle in the panel's title bar; the footer shows which transforms are
+currently active.
 
 ## Privacy
 

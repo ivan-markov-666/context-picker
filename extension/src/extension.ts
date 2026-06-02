@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
 import { collectSelectedFiles, collectAllFiles, summarizeSelection } from './collect';
+import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Reuse the directory-scanner core for the actual scanning/skeleton logic.
 // Import from the CLI-free core modules so the bundle never pulls in the
 // `scanner.ts`/`tree.ts` CLI entry points (shebang / `require.main` guard).
@@ -30,18 +31,24 @@ export function activate(context: vscode.ExtensionContext): void {
       treeView.message = 'Open a folder to begin.';
       return;
     }
+    const isIgnored = await buildIgnorePredicate();
     const summary = { files: 0, bytes: 0 };
     for (const folder of folders) {
-      await summarizeSelection(folder.uri.fsPath, selection, summary);
+      await summarizeSelection(folder.uri.fsPath, selection, summary, isIgnored);
     }
-    const strip = vscode.workspace
-      .getConfiguration('projectContext')
-      .get<boolean>('stripComments', false);
-    const commentsNote = strip ? 'comments: stripped' : 'comments: kept';
+
+    // Show only the transforms that are currently ACTIVE, to keep it compact.
+    const cfg = vscode.workspace.getConfiguration('projectContext');
+    const flags: string[] = [];
+    if (cfg.get<boolean>('stripComments', false)) flags.push('no comments');
+    if (cfg.get<boolean>('removeBlankLines', false)) flags.push('no blank lines');
+    if (!cfg.get<boolean>('respectGitignore', true)) flags.push('incl. .gitignore');
+    const tail = flags.length ? ` · ${flags.join(' · ')}` : '';
+
     treeView.message =
       summary.files > 0
-        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)} · ${commentsNote}. Run "Generate Contents".`
-        : `Tick files and folders to include them · ${commentsNote}.`;
+        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)}${tail}. Run "Generate Contents".`
+        : `Tick files and folders to include them${tail}.`;
   }
   function scheduleCount(): void {
     if (countTimer) {
@@ -83,11 +90,18 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions
   );
 
-  // Keep the footer in sync if the strip-comments setting changes (e.g. via the
-  // Settings UI or the toggle button).
+  // React to our settings changing from the Settings UI or the toggle buttons.
   vscode.workspace.onDidChangeConfiguration(
     (event) => {
-      if (event.affectsConfiguration('projectContext.stripComments')) {
+      // respectGitignore changes which entries are shown -> refresh the tree.
+      if (event.affectsConfiguration('projectContext.respectGitignore')) {
+        provider.refresh();
+      }
+      if (
+        event.affectsConfiguration('projectContext.stripComments') ||
+        event.affectsConfiguration('projectContext.removeBlankLines') ||
+        event.affectsConfiguration('projectContext.respectGitignore')
+      ) {
         void updateCount();
       }
     },
@@ -101,15 +115,27 @@ export function activate(context: vscode.ExtensionContext): void {
       scheduleCount();
     }),
 
-    vscode.commands.registerCommand('projectContext.enableStripComments', async () => {
-      await setStripComments(true);
-      void updateCount();
-    }),
+    vscode.commands.registerCommand('projectContext.enableStripComments', () =>
+      setBoolConfig('stripComments', true)
+    ),
+    vscode.commands.registerCommand('projectContext.disableStripComments', () =>
+      setBoolConfig('stripComments', false)
+    ),
 
-    vscode.commands.registerCommand('projectContext.disableStripComments', async () => {
-      await setStripComments(false);
-      void updateCount();
-    }),
+    vscode.commands.registerCommand('projectContext.enableRemoveBlankLines', () =>
+      setBoolConfig('removeBlankLines', true)
+    ),
+    vscode.commands.registerCommand('projectContext.disableRemoveBlankLines', () =>
+      setBoolConfig('removeBlankLines', false)
+    ),
+
+    // "show .gitignored" stops respecting .gitignore; "respect" honours it again.
+    vscode.commands.registerCommand('projectContext.showGitignored', () =>
+      setBoolConfig('respectGitignore', false)
+    ),
+    vscode.commands.registerCommand('projectContext.respectGitignore', () =>
+      setBoolConfig('respectGitignore', true)
+    ),
 
     vscode.commands.registerCommand('projectContext.clear', () => {
       selection.clear();
@@ -147,12 +173,21 @@ export function deactivate(): void {
   // Nothing to clean up; subscriptions are disposed by VS Code.
 }
 
-/** Persists the strip-comments setting (workspace scope when a folder is open). */
-async function setStripComments(value: boolean): Promise<void> {
+/** Persists a boolean setting (workspace scope when a folder is open). */
+async function setBoolConfig(key: string, value: boolean): Promise<void> {
   const target = vscode.workspace.workspaceFolders?.length
     ? vscode.ConfigurationTarget.Workspace
     : vscode.ConfigurationTarget.Global;
-  await vscode.workspace.getConfiguration('projectContext').update('stripComments', value, target);
+  await vscode.workspace.getConfiguration('projectContext').update(key, value, target);
+}
+
+/** Builds a .gitignore predicate for the current workspace, honouring the setting. */
+async function buildIgnorePredicate(): Promise<IgnorePredicate> {
+  const respect = vscode.workspace
+    .getConfiguration('projectContext')
+    .get<boolean>('respectGitignore', true);
+  const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  return createGitignorePredicate(roots, respect);
 }
 
 function formatBytes(bytes: number): string {
@@ -197,16 +232,21 @@ async function deliver(text: string): Promise<void> {
   await vscode.window.showTextDocument(doc, { preview: false });
 }
 
-function readScanConfig(): { includeEnvFiles: boolean; stripComments: boolean } {
+function readScanConfig(): {
+  includeEnvFiles: boolean;
+  stripComments: boolean;
+  removeBlankLines: boolean;
+} {
   const cfg = vscode.workspace.getConfiguration('projectContext');
   return {
     includeEnvFiles: cfg.get<boolean>('includeEnvFiles', false),
     stripComments: cfg.get<boolean>('stripComments', false),
+    removeBlankLines: cfg.get<boolean>('removeBlankLines', false),
   };
 }
 
 async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void> {
-  const { includeEnvFiles, stripComments } = readScanConfig();
+  const { includeEnvFiles, stripComments, removeBlankLines } = readScanConfig();
 
   let cancelled = false;
   const text = await vscode.window.withProgress(
@@ -225,6 +265,7 @@ async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void
         includedFiles: files,
         includeEnvFiles,
         stripComments,
+        removeBlankLines,
         isCancelled: () => token.isCancellationRequested,
         onProgress: (done, total) => {
           const pct = Math.floor((done / total) * 100);
@@ -252,9 +293,10 @@ async function generate(selection: SelectionModel): Promise<void> {
     return;
   }
 
+  const isIgnored = await buildIgnorePredicate();
   const files: string[] = [];
   for (const folder of folders) {
-    await collectSelectedFiles(folder.uri.fsPath, selection, files);
+    await collectSelectedFiles(folder.uri.fsPath, selection, files, isIgnored);
   }
 
   if (files.length === 0) {
@@ -281,8 +323,9 @@ async function copyContentsHere(uri?: vscode.Uri): Promise<void> {
     vscode.window.showWarningMessage('Context Picker: right-click a file or folder in the Explorer.');
     return;
   }
+  const isIgnored = await buildIgnorePredicate();
   const files: string[] = [];
-  await collectAllFiles(uri.fsPath, files);
+  await collectAllFiles(uri.fsPath, files, isIgnored);
   if (files.length === 0) {
     vscode.window.showInformationMessage('Context Picker: no files found here.');
     return;
@@ -302,7 +345,8 @@ async function skeletonHere(uri?: vscode.Uri): Promise<void> {
 }
 
 async function deliverSkeleton(dir: string): Promise<void> {
-  const children = await buildTree(dir, dir, { blacklist: [...DEFAULT_IGNORE] });
+  const isIgnored = await buildIgnorePredicate();
+  const children = await buildTree(dir, dir, { blacklist: [...DEFAULT_IGNORE], isIgnored });
   const tree = { name: resolveRootName(dir), isDirectory: true, children };
   await deliver(renderTree(tree));
 }

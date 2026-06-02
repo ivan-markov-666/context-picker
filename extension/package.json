@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -80,6 +80,30 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "projectContext.enableRemoveBlankLines",
+        "title": "Remove Blank Lines: off (click to enable)",
+        "category": "Context Picker",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "projectContext.disableRemoveBlankLines",
+        "title": "Remove Blank Lines: on (click to disable)",
+        "category": "Context Picker",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "projectContext.showGitignored",
+        "title": "Show .gitignore'd files (currently hidden)",
+        "category": "Context Picker",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "projectContext.respectGitignore",
+        "title": "Hide .gitignore'd files (respect .gitignore)",
+        "category": "Context Picker",
+        "icon": "$(eye)"
+      },
+      {
         "command": "projectContext.refresh",
         "title": "Refresh",
         "category": "Context Picker",
@@ -110,16 +134,6 @@
     "menus": {
       "view/title": [
         {
-          "command": "projectContext.enableStripComments",
-          "when": "view == projectContext.tree && !config.projectContext.stripComments",
-          "group": "navigation@0"
-        },
-        {
-          "command": "projectContext.disableStripComments",
-          "when": "view == projectContext.tree && config.projectContext.stripComments",
-          "group": "navigation@0"
-        },
-        {
           "command": "projectContext.generate",
           "when": "view == projectContext.tree",
           "group": "navigation@1"
@@ -130,14 +144,44 @@
           "group": "navigation@2"
         },
         {
+          "command": "projectContext.enableStripComments",
+          "when": "view == projectContext.tree && !config.projectContext.stripComments",
+          "group": "navigation@3"
+        },
+        {
+          "command": "projectContext.disableStripComments",
+          "when": "view == projectContext.tree && config.projectContext.stripComments",
+          "group": "navigation@3"
+        },
+        {
+          "command": "projectContext.enableRemoveBlankLines",
+          "when": "view == projectContext.tree && !config.projectContext.removeBlankLines",
+          "group": "navigation@4"
+        },
+        {
+          "command": "projectContext.disableRemoveBlankLines",
+          "when": "view == projectContext.tree && config.projectContext.removeBlankLines",
+          "group": "navigation@4"
+        },
+        {
+          "command": "projectContext.showGitignored",
+          "when": "view == projectContext.tree && config.projectContext.respectGitignore",
+          "group": "navigation@5"
+        },
+        {
+          "command": "projectContext.respectGitignore",
+          "when": "view == projectContext.tree && !config.projectContext.respectGitignore",
+          "group": "navigation@5"
+        },
+        {
           "command": "projectContext.refresh",
           "when": "view == projectContext.tree",
-          "group": "navigation@3"
+          "group": "navigation@6"
         },
         {
           "command": "projectContext.clear",
           "when": "view == projectContext.tree",
-          "group": "navigation@4"
+          "group": "navigation@7"
         }
       ],
       "explorer/context": [
@@ -174,6 +218,16 @@
           "type": "boolean",
           "default": false,
           "description": "Include the content of .env files (disabled by default to protect secrets)."
+        },
+        "projectContext.removeBlankLines": {
+          "type": "boolean",
+          "default": false,
+          "description": "Remove blank/whitespace-only lines from generated file contents (reduces size)."
+        },
+        "projectContext.respectGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hide files and folders matched by the workspace .gitignore (in the tree, generation and skeleton)."
         }
       }
     }
@@ -185,6 +239,9 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --require ts-node/register --test test/*.test.ts",
     "package": "vsce package"
+  },
+  "dependencies": {
+    "ignore": "^5.3.1"
   },
   "devDependencies": {
     "@types/node": "^18.19.0",

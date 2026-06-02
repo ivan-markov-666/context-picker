@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SelectionModel } from './SelectionModel';
+import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Reuse the core's blacklist logic so the extension and the CLI stay consistent.
 import { isBlacklisted, DEFAULT_IGNORE } from '../../src/blacklist';
 
@@ -17,10 +18,26 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<FsNode> {
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<FsNode | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  private ignorePromise?: Promise<IgnorePredicate>;
+
   constructor(private readonly selection: SelectionModel) {}
 
   refresh(node?: FsNode): void {
+    // Drop the cached .gitignore matcher so config / .gitignore edits take effect.
+    this.ignorePromise = undefined;
     this._onDidChangeTreeData.fire(node);
+  }
+
+  /** Lazily builds and caches the .gitignore predicate (honours the setting). */
+  private getIgnorePredicate(): Promise<IgnorePredicate> {
+    if (!this.ignorePromise) {
+      const respect = vscode.workspace
+        .getConfiguration('projectContext')
+        .get<boolean>('respectGitignore', true);
+      const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+      this.ignorePromise = createGitignorePredicate(roots, respect);
+    }
+    return this.ignorePromise;
   }
 
   getTreeItem(node: FsNode): vscode.TreeItem {
@@ -77,14 +94,18 @@ export class ProjectTreeProvider implements vscode.TreeDataProvider<FsNode> {
       return [];
     }
 
+    const isIgnored = await this.getIgnorePredicate();
+
     const nodes: FsNode[] = [];
     for (const entry of entries) {
-      // M1 uses the built-in default ignore (node_modules/.git); the full
-      // blacklist.txt integration comes in a later milestone.
+      // Always skip node_modules/.git; optionally skip .gitignore'd entries.
       if (isBlacklisted(entry.name, DEFAULT_IGNORE)) {
         continue;
       }
       const full = path.join(element.fsPath, entry.name);
+      if (isIgnored(full, entry.isDirectory())) {
+        continue;
+      }
       const isDirectory = entry.isDirectory() && !entry.isSymbolicLink();
       nodes.push({
         uri: vscode.Uri.file(full),

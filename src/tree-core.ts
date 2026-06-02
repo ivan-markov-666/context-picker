@@ -22,6 +22,12 @@ export interface BuildTreeOptions {
   blacklist?: string[];
   /** Maximum depth to descend (1 = only direct children). `Infinity` by default. */
   maxDepth?: number;
+  /**
+   * Optional predicate; when it returns true for an entry's absolute path, the
+   * entry (and its subtree) is excluded. Used to honour `.gitignore`. The second
+   * argument indicates whether the entry is a directory.
+   */
+  isIgnored?: (fullPath: string, isDirectory: boolean) => boolean;
 }
 
 /**
@@ -52,7 +58,7 @@ export async function buildTree(
   options: BuildTreeOptions = {},
   depth = 1
 ): Promise<TreeNode[]> {
-  const { blacklist = [], maxDepth = Infinity } = options;
+  const { blacklist = [], maxDepth = Infinity, isIgnored } = options;
 
   let entries: fs.Dirent[];
   try {
@@ -70,12 +76,12 @@ export async function buildTree(
     const fullPath = path.join(dirPath, entry.name);
     const relativePath = path.relative(basePath, fullPath).replace(/\\/g, '/');
 
-    if (isBlacklisted(relativePath, blacklist)) {
-      continue;
-    }
-
     // Symbolic links are listed but never followed.
     const isDirectory = entry.isDirectory() && !entry.isSymbolicLink();
+
+    if (isBlacklisted(relativePath, blacklist) || isIgnored?.(fullPath, isDirectory)) {
+      continue;
+    }
 
     const node: TreeNode = { name: entry.name, isDirectory, children: [] };
 

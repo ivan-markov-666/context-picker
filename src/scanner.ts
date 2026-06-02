@@ -8,7 +8,7 @@ import { renderFileBody } from './scan-core';
 
 // Re-export the CLI-free scan helpers so existing importers of `./scanner`
 // (the library API and tests) keep working unchanged.
-export { renderFileBody, scanSelectionToString } from './scan-core';
+export { renderFileBody, scanSelectionToString, stripBlankLines } from './scan-core';
 export type { ScanSelectionOptions } from './scan-core';
 
 /**

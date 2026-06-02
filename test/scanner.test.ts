@@ -9,6 +9,7 @@ import {
   ScannerCliOptions,
   scanSelectionToString,
   renderFileBody,
+  stripBlankLines,
 } from '../src/scanner';
 
 const silentLogger = { log: () => {}, warn: () => {}, error: () => {} };
@@ -22,6 +23,7 @@ async function makeFixture(): Promise<string> {
   await fs.promises.writeFile(path.join(root, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
   await fs.promises.mkdir(path.join(root, 'sub'));
   await fs.promises.writeFile(path.join(root, 'sub', 'b.md'), '# title', 'utf-8');
+  await fs.promises.writeFile(path.join(root, 'blank.txt'), 'line1\n\n\n   \nline2\n', 'utf-8');
   return root;
 }
 
@@ -272,6 +274,38 @@ describe('scanSelectionToString', () => {
     assert.ok(output.includes('a.txt'));
     assert.ok(output.includes('hello world'));
     assert.ok(!output.includes('code.js'), 'should not process files after cancellation');
+
+    await fs.promises.rm(root, { recursive: true, force: true });
+  });
+});
+
+describe('stripBlankLines', () => {
+  test('removes blank and whitespace-only lines', () => {
+    assert.equal(stripBlankLines('a\n\n\n   \nb'), 'a\nb');
+    assert.equal(stripBlankLines('x\ny\nz'), 'x\ny\nz');
+    assert.equal(stripBlankLines('\n\n'), '');
+  });
+});
+
+describe('scanSelectionToString with removeBlankLines', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await makeFixture();
+  });
+
+  test('drops blank lines from the output when enabled', async () => {
+    const opts = {
+      rootDir: root,
+      includedFiles: [path.join(root, 'blank.txt')],
+      includeEnvFiles: false,
+      stripComments: false,
+    };
+    const kept = await scanSelectionToString({ ...opts, removeBlankLines: false });
+    const collapsed = await scanSelectionToString({ ...opts, removeBlankLines: true });
+
+    assert.ok(kept.includes('line1\n\n\n'), 'blank lines preserved by default');
+    assert.ok(collapsed.includes('line1\nline2'), 'blank lines removed when enabled');
+    assert.ok(!collapsed.includes('line1\n\n'), 'no consecutive blank lines remain');
 
     await fs.promises.rm(root, { recursive: true, force: true });
   });
