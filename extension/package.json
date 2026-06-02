@@ -3,7 +3,7 @@
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
   "version": "0.1.0",
-  "publisher": "ivan-markov",
+  "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
   "private": true,
