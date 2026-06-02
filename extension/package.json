@@ -16,24 +16,21 @@
   "keywords": [
     "llm",
     "ai",
-    "chatgpt",
-    "claude",
     "context",
     "copy",
     "clipboard",
     "prompt",
     "tree",
-    "comments"
+    "comments",
+    "codebase"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/ivan-markov-666/file-copy-project.git",
-    "directory": "extension"
+    "url": "https://github.com/ivan-markov-666/file-copy-project.git"
   },
   "bugs": {
     "url": "https://github.com/ivan-markov-666/file-copy-project/issues"
   },
-  "homepage": "https://github.com/ivan-markov-666/file-copy-project/tree/main/extension#readme",
   "galleryBanner": {
     "color": "#4F46E5",
     "theme": "dark"

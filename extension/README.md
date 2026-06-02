@@ -1,65 +1,61 @@
-# Context Picker (VS Code extension)
+# Context Picker
 
-Pick files and folders in a checkbox tree and generate their contents — or the
-project skeleton — for pasting into an LLM. Built on top of the
-[`directory-scanner`](../README.md) core.
+**Pick files and folders with checkboxes, then copy their code — or a project skeleton — ready to paste into an LLM.**
 
-> **Status: M3 polish.** Checkbox tree with recursive include/exclude, simulated
-> "partial" folder badges and persistence. **Generate Contents** emits the actual
-> formatted file **contents** (via the core's `scanSelectionToString`); **Copy
-> Project Skeleton** emits the project tree (via `renderTree`); a footer shows the
-> selected file count and approximate size; and the Explorer right-click menu has
-> quick **Copy Contents (with subfolders)** / **Copy Skeleton From Here** actions.
-> Output goes to a new editor tab, the clipboard, or a file (see settings).
+Context Picker adds a sidebar panel with a checkbox tree of your workspace. Tick
+what matters, and generate a single, well-formatted block of file contents (or
+just the directory tree) to paste into ChatGPT, Claude, or any AI assistant.
 
-## Run it locally (no publishing needed)
+## Features
 
-1. Open **this `extension/` folder** in VS Code (File → Open Folder…).
-2. `npm install`
-3. Press **F5** → an "Extension Development Host" window opens with the extension
-   loaded. Click the **Context Picker** icon in the Activity Bar.
-4. Tick files/folders, then use the **Generate Contents** button in the view's
-   title bar (or right-click items in the Explorer → *Add to Context Picker*).
+- **Checkbox tree** of your project — tick a folder to include everything under
+  it recursively; untick a file to exclude it. Partially-selected folders are
+  marked so you always know what's in.
+- **Generate Contents** — outputs the path + content of every selected file in
+  one block, opened in a new editor tab (or copied to the clipboard / saved to a
+  file).
+- **Copy Project Skeleton** — outputs just the directory tree, with your project
+  name as the root.
+- **Optional comment stripping** — one-click toggle to remove comments from
+  supported languages, so the paste is smaller and focused on code.
+- **Skip secrets** — `.env` file contents are excluded by default.
+- **A footer** shows how many files are selected and the approximate size, so you
+  know how big the paste will be before you generate.
+- **Progress + Cancel** — a progress bar with a percentage and a cancel button
+  for large selections.
+- **Explorer quick actions** — right-click any file or folder to *Copy Contents
+  (with subfolders)* or *Copy Skeleton From Here* without opening the panel.
+- Your selection is **remembered** between sessions.
 
-## Scripts
+`node_modules` and `.git` are ignored automatically.
 
-| Script | Purpose |
-| --- | --- |
-| `npm run build` | Bundle `src/` (+ the imported core) into `dist/extension.js` with esbuild |
-| `npm run watch` | Rebuild on change |
-| `npm run typecheck` | Type-check with `tsc --noEmit` |
-| `npm test` | Build, then run the tests (SelectionModel, file collection, and an activation smoke test that loads the built bundle with a mocked `vscode`) |
-| `npm run package` | Produce a `.vsix` with `@vscode/vsce` |
+## How to use
+
+1. Click the **Context Picker** icon in the Activity Bar.
+2. Tick the files and folders you want.
+3. Click **Generate Contents** in the panel's title bar.
+4. Paste the result into your LLM of choice.
+
+Prefer a quick one-off? Right-click a file or folder in the Explorer and choose
+**Copy Contents (with subfolders)**.
 
 ## Settings
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `projectContext.output` | `editor` | Where output goes: `editor` tab, `clipboard`, or `file` |
+| `projectContext.output` | `editor` | Where output goes: a new `editor` tab, the `clipboard`, or a `file` |
 | `projectContext.stripComments` | `false` | Strip comments from supported source files |
 | `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
 
-`stripComments` also has a **one-click toggle** in the view's title bar (the comment
-icon); the footer shows the current state (`comments: stripped` / `comments: kept`).
+Comment stripping also has a one-click toggle in the panel's title bar; the
+footer shows whether comments are currently stripped or kept.
 
-## How it reuses the core
+## Privacy
 
-The extension imports the core directly from `../src` — `scanSelectionToString`
-(scanner), `buildTree` / `renderTree` / `resolveRootName` (tree) and
-`isBlacklisted` / `DEFAULT_IGNORE` (blacklist). esbuild bundles those modules
-(and their `comment-bear` dependency) in, so there is a single source of truth
-and no need to publish the npm package first.
+Context Picker runs entirely locally. It reads the files you select and produces
+text in your editor, clipboard, or a file you choose. It does not send anything
+anywhere.
 
-## Layout
+## License
 
-```
-extension/
-├── package.json              # manifest (views, commands, menus)
-├── esbuild.js                # bundler
-├── src/
-│   ├── extension.ts          # activate(): wires the view, commands, generate
-│   ├── ProjectTreeProvider.ts# TreeDataProvider + checkbox rendering
-│   ├── SelectionModel.ts     # include/exclude overrides (persisted)
-│   └── collect.ts            # walk that gathers the selected files
-└── resources/activity-icon.svg
-```
+MIT
