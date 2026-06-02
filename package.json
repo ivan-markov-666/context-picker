@@ -35,7 +35,8 @@
     "context"
   ],
   "dependencies": {
-    "comment-bear": "^1.2.3"
+    "comment-bear": "^1.2.3",
+    "ignore": "^5.3.1"
   },
   "devDependencies": {
     "@types/node": "^18.15.0",

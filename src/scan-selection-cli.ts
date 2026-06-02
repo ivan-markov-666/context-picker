@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 /**
- * Thin CLI bridge around {@link scanSelectionToString}, intended to be called
- * from non-Node hosts (e.g. a Visual Studio C# extension). It reads a JSON
- * request and writes the formatted scan output to stdout.
+ * Node "bridge" CLI for non-Node hosts (e.g. a Visual Studio C# extension).
+ * Reads a JSON request from stdin (or a file arg) and writes the result to
+ * stdout. Three modes:
  *
- * Request shape (all fields except `includedFiles` optional):
- * {
- *   "rootDir": "C:\\proj",
- *   "includedFiles": ["C:\\proj\\src\\a.ts", ...],
- *   "includeEnvFiles": false,
- *   "stripComments": true,
- *   "removeBlankLines": false
- * }
+ *   mode "scan"     -> formatted contents of the given files (default)
+ *     { mode, rootDir, includedFiles[], includeEnvFiles, stripComments, removeBlankLines }
+ *   mode "tree"     -> JSON listing of the workspace for a checkbox UI
+ *     { mode, rootDir, respectGitignore }
+ *   mode "skeleton" -> the project skeleton (tree) as text
+ *     { mode, rootDir, respectGitignore }
  *
- * Usage:
- *   echo <json> | node scan-selection-cli.js     // request on stdin
- *   node scan-selection-cli.js request.json       // request from a file
+ * Usage:  echo <json> | node scan-selection.js      |      node scan-selection.js request.json
  */
 import * as fs from 'fs';
 import { scanSelectionToString } from './scan-core';
+import { buildTree, renderTree, resolveRootName, TreeNode } from './tree-core';
+import { DEFAULT_IGNORE } from './blacklist';
+import { createGitignorePredicate } from './gitignore';
 
 interface Request {
+  mode?: 'scan' | 'tree' | 'skeleton';
   rootDir?: string;
   includedFiles?: string[];
   includeEnvFiles?: boolean;
   stripComments?: boolean;
   removeBlankLines?: boolean;
+  respectGitignore?: boolean;
 }
 
 async function readStdin(): Promise<string> {
@@ -34,6 +35,16 @@ async function readStdin(): Promise<string> {
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString('utf-8');
+}
+
+/** Serialisable tree node (includes absolute paths for the host to send back). */
+function toJsonTree(node: TreeNode): unknown {
+  return {
+    name: node.name,
+    path: node.path,
+    isDirectory: node.isDirectory,
+    children: node.children.map(toJsonTree),
+  };
 }
 
 export async function main(argv: string[] = process.argv): Promise<void> {
@@ -49,15 +60,47 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     return;
   }
 
-  const text = await scanSelectionToString({
-    rootDir: req.rootDir ?? process.cwd(),
-    includedFiles: req.includedFiles ?? [],
-    includeEnvFiles: req.includeEnvFiles ?? false,
-    stripComments: req.stripComments ?? false,
-    removeBlankLines: req.removeBlankLines ?? false,
+  const rootDir = req.rootDir ?? process.cwd();
+  const mode = req.mode ?? 'scan';
+
+  if (mode === 'scan') {
+    const text = await scanSelectionToString({
+      rootDir,
+      includedFiles: req.includedFiles ?? [],
+      includeEnvFiles: req.includeEnvFiles ?? false,
+      stripComments: req.stripComments ?? false,
+      removeBlankLines: req.removeBlankLines ?? false,
+    });
+    process.stdout.write(text);
+    return;
+  }
+
+  // tree / skeleton both walk the directory honouring node_modules/.git + .gitignore.
+  const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
+  const children = await buildTree(rootDir, rootDir, {
+    blacklist: [...DEFAULT_IGNORE],
+    isIgnored,
   });
 
-  process.stdout.write(text);
+  if (mode === 'tree') {
+    const root = {
+      name: resolveRootName(rootDir),
+      path: rootDir,
+      isDirectory: true,
+      children: children.map(toJsonTree),
+    };
+    process.stdout.write(JSON.stringify(root));
+    return;
+  }
+
+  if (mode === 'skeleton') {
+    const root: TreeNode = { name: resolveRootName(rootDir), isDirectory: true, children };
+    process.stdout.write(renderTree(root));
+    return;
+  }
+
+  process.stderr.write(`scan-selection: unknown mode "${mode}"\n`);
+  process.exitCode = 2;
 }
 
 if (require.main === module) {

@@ -34,13 +34,16 @@ comment-bear inlined). It requires **Node.js on PATH** on the user's machine.
   `scan-selection.js`; the console harness in `bridge-test/` proves a C# process
   can produce the formatted scan (with comment stripping + blank-line removal).
   This is the equivalent of the VS Code "M1 spike".
-- ⏳ **Next — extend the bridge to multiple modes** (in the npm project):
-  - `mode: "scan"` — files → formatted contents (done).
-  - `mode: "tree"` — root + respectGitignore → JSON listing for the checkbox tree.
+- ✅ **Multi-mode bridge (done & verified):** the bundled CLI now handles all
+  three modes, with `.gitignore` filtering reused from the core:
+  - `mode: "scan"` — files → formatted contents.
+  - `mode: "tree"` — root + respectGitignore → JSON listing (with absolute paths)
+    for the checkbox tree; excludes node_modules/.git and `.gitignore` matches.
   - `mode: "skeleton"` — root + respectGitignore → the project skeleton string.
-  Putting tree/gitignore/skeleton in Node keeps C# thin and reuses tested code.
-- ⏳ **Then — the VSIX itself:** AsyncPackage + a `ToolWindowPane` hosting a WPF
-  `UserControl` with the checkbox tree, toolbar buttons and the toggles.
+  So tree/gitignore/skeleton/scan all run in the already-tested JS core; C# stays thin.
+- ⏳ **Next — the VSIX itself:** AsyncPackage + a `ToolWindowPane` hosting a WPF
+  `UserControl` with the checkbox tree, toolbar buttons and the toggles. Built in
+  Visual Studio (pending the VSSDK install).
 
 ## How to verify the bridge now
 

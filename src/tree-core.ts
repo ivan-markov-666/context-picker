@@ -12,6 +12,8 @@ export interface TreeNode {
   isDirectory: boolean;
   /** Child nodes (only for directories). */
   children: TreeNode[];
+  /** Absolute filesystem path. Populated by {@link buildTree}; optional otherwise. */
+  path?: string;
 }
 
 /**
@@ -83,7 +85,7 @@ export async function buildTree(
       continue;
     }
 
-    const node: TreeNode = { name: entry.name, isDirectory, children: [] };
+    const node: TreeNode = { name: entry.name, isDirectory, children: [], path: fullPath };
 
     if (isDirectory && depth < maxDepth) {
       node.children = await buildTree(fullPath, basePath, options, depth + 1);
