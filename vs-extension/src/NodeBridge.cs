@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace ContextPicker
 {
-    /// <summary>Request passed to the bundled Node bridge (scan-selection.js).</summary>
+    /// <summary>Request for the "scan" mode of the bridge.</summary>
     public sealed class ScanRequest
     {
         public string RootDir { get; set; } = "";
@@ -16,16 +16,27 @@ namespace ContextPicker
     }
 
     /// <summary>
-    /// Invokes the bundled Node CLI (scan-selection.js) to produce the formatted
-    /// scan text, reusing the directory-scanner core (including comment-bear).
-    /// Dependency-free and JSON is built by hand, so this compiles on both
-    /// .NET Framework 4.7.2 (the VSIX) and modern .NET (the test harness).
+    /// Invokes the bundled Node CLI (scan-selection.js) to reuse the
+    /// directory-scanner core (including comment-bear). Three modes:
+    /// scan (files -> formatted contents), tree (JSON listing for the checkbox
+    /// UI), skeleton (project tree as text). Dependency-free and hand-rolled JSON
+    /// so it compiles on .NET Framework 4.7.2 (the VSIX) and modern .NET.
     /// </summary>
     public static class NodeBridge
     {
-        /// <param name="nodeExe">Path to node, or just "node" to resolve from PATH.</param>
-        /// <param name="scriptPath">Path to the bundled scan-selection.js.</param>
-        public static async Task<string> ScanAsync(string nodeExe, string scriptPath, ScanRequest request)
+        /// <summary>files -> formatted contents.</summary>
+        public static Task<string> ScanAsync(string nodeExe, string scriptPath, ScanRequest request)
+            => RunAsync(nodeExe, scriptPath, ScanJson(request));
+
+        /// <summary>root -> JSON tree listing (with absolute paths) for the checkbox UI.</summary>
+        public static Task<string> TreeJsonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
+            => RunAsync(nodeExe, scriptPath, ModeJson("tree", rootDir, respectGitignore));
+
+        /// <summary>root -> the project skeleton (tree) as text.</summary>
+        public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
+            => RunAsync(nodeExe, scriptPath, ModeJson("skeleton", rootDir, respectGitignore));
+
+        private static async Task<string> RunAsync(string nodeExe, string scriptPath, string json)
         {
             var psi = new ProcessStartInfo
             {
@@ -51,7 +62,7 @@ namespace ContextPicker
                 Task<string> outTask = proc.StandardOutput.ReadToEndAsync();
                 Task<string> errTask = proc.StandardError.ReadToEndAsync();
 
-                await proc.StandardInput.WriteAsync(ToJson(request)).ConfigureAwait(false);
+                await proc.StandardInput.WriteAsync(json).ConfigureAwait(false);
                 proc.StandardInput.Close();
 
                 string output = await outTask.ConfigureAwait(false);
@@ -61,17 +72,17 @@ namespace ContextPicker
                 if (exitCode != 0)
                 {
                     throw new InvalidOperationException(
-                        $"Node bridge failed (exit {exitCode}): {error}");
+                        "Node bridge failed (exit " + exitCode + "): " + error);
                 }
 
                 return output;
             }
         }
 
-        private static string ToJson(ScanRequest r)
+        private static string ScanJson(ScanRequest r)
         {
             var sb = new StringBuilder();
-            sb.Append('{');
+            sb.Append("{\"mode\":\"scan\",");
             sb.Append("\"rootDir\":").Append(JsonString(r.RootDir)).Append(',');
             sb.Append("\"includedFiles\":[");
             for (int i = 0; i < r.IncludedFiles.Length; i++)
@@ -80,12 +91,21 @@ namespace ContextPicker
                 sb.Append(JsonString(r.IncludedFiles[i]));
             }
             sb.Append("],");
-            sb.Append("\"includeEnvFiles\":").Append(r.IncludeEnvFiles ? "true" : "false").Append(',');
-            sb.Append("\"stripComments\":").Append(r.StripComments ? "true" : "false").Append(',');
-            sb.Append("\"removeBlankLines\":").Append(r.RemoveBlankLines ? "true" : "false");
+            sb.Append("\"includeEnvFiles\":").Append(Bool(r.IncludeEnvFiles)).Append(',');
+            sb.Append("\"stripComments\":").Append(Bool(r.StripComments)).Append(',');
+            sb.Append("\"removeBlankLines\":").Append(Bool(r.RemoveBlankLines));
             sb.Append('}');
             return sb.ToString();
         }
+
+        private static string ModeJson(string mode, string rootDir, bool respectGitignore)
+        {
+            return "{\"mode\":" + JsonString(mode)
+                + ",\"rootDir\":" + JsonString(rootDir)
+                + ",\"respectGitignore\":" + Bool(respectGitignore) + "}";
+        }
+
+        private static string Bool(bool b) => b ? "true" : "false";
 
         private static string JsonString(string s)
         {
