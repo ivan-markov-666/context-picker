@@ -4,7 +4,7 @@
 
 Context Picker adds a sidebar panel with a checkbox tree of your workspace. Tick
 what matters, and generate a single, well-formatted block of file contents (or
-just the directory tree) to paste into ChatGPT, Claude, or any AI assistant.
+just the directory tree) to paste into any AI assistant or large language model.
 
 ## Features
 

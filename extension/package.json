@@ -6,7 +6,6 @@
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
-  "private": true,
   "engines": {
     "vscode": "^1.84.0"
   },
