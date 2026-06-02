@@ -1,7 +1,5 @@
 # Project Directory and File Content Scanner
 
-[![CI](https://github.com/ivan-markov-666/file-copy-project/actions/workflows/ci.yml/badge.svg)](https://github.com/ivan-markov-666/file-copy-project/actions/workflows/ci.yml)
-
 A small TypeScript toolkit that helps you turn a project into LLM-friendly context. It offers two commands:
 
 1. **`scanner`** — recursively collects the paths **and contents** of all files into a single text file (with optional comment stripping and `.env` handling).
@@ -10,7 +8,7 @@ A small TypeScript toolkit that helps you turn a project into LLM-friendly conte
 The final output can easily be pasted into any LLM to assist with faster code development.
 
 > **Note**
-> - This is a Node.js project. You need Node.js installed (Node 20+ recommended; CI runs on 20, 22 and 24).
+> - This is a Node.js project. You need Node.js installed (Node 20+ recommended).
 > - After cloning, run `npm install` to install dependencies.
 > - Both commands can process **any** project, not only Node.js ones.
 
