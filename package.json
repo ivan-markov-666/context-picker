@@ -33,7 +33,7 @@
     "context"
   ],
   "dependencies": {
-    "comment-bear": "^1.2.1"
+    "comment-bear": "^1.2.3"
   },
   "devDependencies": {
     "@types/node": "^18.15.0",
