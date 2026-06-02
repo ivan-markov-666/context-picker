@@ -175,7 +175,7 @@ async function deliver(text: string): Promise<void> {
 
   if (sink === 'clipboard') {
     await vscode.env.clipboard.writeText(text);
-    vscode.window.showInformationMessage('Project Context: copied to clipboard.');
+    vscode.window.showInformationMessage('Context Picker: copied to clipboard.');
     return;
   }
 
@@ -188,7 +188,7 @@ async function deliver(text: string): Promise<void> {
       return;
     }
     await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf8'));
-    vscode.window.showInformationMessage(`Project Context: saved to ${uri.fsPath}.`);
+    vscode.window.showInformationMessage(`Context Picker: saved to ${uri.fsPath}.`);
     return;
   }
 
@@ -212,7 +212,7 @@ async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void
   const text = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'Project Context: generating',
+      title: 'Context Picker: generating',
       cancellable: true,
     },
     (progress, token) => {
@@ -236,19 +236,19 @@ async function scanFilesToOutput(rootDir: string, files: string[]): Promise<void
   );
 
   if (cancelled) {
-    vscode.window.showInformationMessage('Project Context: generation cancelled.');
+    vscode.window.showInformationMessage('Context Picker: generation cancelled.');
     return;
   }
 
   await deliver(text);
-  vscode.window.showInformationMessage(`Project Context: generated ${files.length} file(s).`);
+  vscode.window.showInformationMessage(`Context Picker: generated ${files.length} file(s).`);
 }
 
 /** Collects the checkbox selection and outputs the formatted file contents. */
 async function generate(selection: SelectionModel): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
-    vscode.window.showWarningMessage('Project Context: open a folder first.');
+    vscode.window.showWarningMessage('Context Picker: open a folder first.');
     return;
   }
 
@@ -258,7 +258,7 @@ async function generate(selection: SelectionModel): Promise<void> {
   }
 
   if (files.length === 0) {
-    vscode.window.showInformationMessage('Project Context: no files selected yet.');
+    vscode.window.showInformationMessage('Context Picker: no files selected yet.');
     return;
   }
 
@@ -269,7 +269,7 @@ async function generate(selection: SelectionModel): Promise<void> {
 async function copySkeleton(): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
-    vscode.window.showWarningMessage('Project Context: open a folder first.');
+    vscode.window.showWarningMessage('Context Picker: open a folder first.');
     return;
   }
   await deliverSkeleton(folders[0].uri.fsPath);
@@ -278,13 +278,13 @@ async function copySkeleton(): Promise<void> {
 /** Explorer quick action: output the contents of the clicked file/folder. */
 async function copyContentsHere(uri?: vscode.Uri): Promise<void> {
   if (!uri) {
-    vscode.window.showWarningMessage('Project Context: right-click a file or folder in the Explorer.');
+    vscode.window.showWarningMessage('Context Picker: right-click a file or folder in the Explorer.');
     return;
   }
   const files: string[] = [];
   await collectAllFiles(uri.fsPath, files);
   if (files.length === 0) {
-    vscode.window.showInformationMessage('Project Context: no files found here.');
+    vscode.window.showInformationMessage('Context Picker: no files found here.');
     return;
   }
   const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
@@ -295,7 +295,7 @@ async function copyContentsHere(uri?: vscode.Uri): Promise<void> {
 /** Explorer quick action: output the skeleton rooted at the clicked folder. */
 async function skeletonHere(uri?: vscode.Uri): Promise<void> {
   if (!uri) {
-    vscode.window.showWarningMessage('Project Context: right-click a folder in the Explorer.');
+    vscode.window.showWarningMessage('Context Picker: right-click a folder in the Explorer.');
     return;
   }
   await deliverSkeleton(uri.fsPath);

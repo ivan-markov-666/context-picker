@@ -1,4 +1,4 @@
-# Project Context (VS Code extension)
+# Context Picker (VS Code extension)
 
 Pick files and folders in a checkbox tree and generate their contents — or the
 project skeleton — for pasting into an LLM. Built on top of the
@@ -17,9 +17,9 @@ project skeleton — for pasting into an LLM. Built on top of the
 1. Open **this `extension/` folder** in VS Code (File → Open Folder…).
 2. `npm install`
 3. Press **F5** → an "Extension Development Host" window opens with the extension
-   loaded. Click the **Project Context** icon in the Activity Bar.
+   loaded. Click the **Context Picker** icon in the Activity Bar.
 4. Tick files/folders, then use the **Generate Contents** button in the view's
-   title bar (or right-click items in the Explorer → *Add to Project Context*).
+   title bar (or right-click items in the Explorer → *Add to Context Picker*).
 
 ## Scripts
 

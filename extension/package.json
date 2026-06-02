@@ -1,9 +1,11 @@
 {
-  "name": "project-context",
-  "displayName": "Project Context",
-  "description": "Pick files and folders with checkboxes and generate their contents or a project skeleton for LLMs.",
-  "version": "0.0.1",
-  "publisher": "your-publisher-id",
+  "name": "context-picker",
+  "displayName": "Context Picker",
+  "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
+  "version": "0.1.0",
+  "publisher": "ivan-markov",
+  "license": "MIT",
+  "icon": "resources/icon.png",
   "private": true,
   "engines": {
     "vscode": "^1.84.0"
@@ -11,6 +13,31 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "llm",
+    "ai",
+    "chatgpt",
+    "claude",
+    "context",
+    "copy",
+    "clipboard",
+    "prompt",
+    "tree",
+    "comments"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivan-markov-666/file-copy-project.git",
+    "directory": "extension"
+  },
+  "bugs": {
+    "url": "https://github.com/ivan-markov-666/file-copy-project/issues"
+  },
+  "homepage": "https://github.com/ivan-markov-666/file-copy-project/tree/main/extension#readme",
+  "galleryBanner": {
+    "color": "#4F46E5",
+    "theme": "dark"
+  },
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
@@ -18,7 +45,7 @@
       "activitybar": [
         {
           "id": "projectContext",
-          "title": "Project Context",
+          "title": "Context Picker",
           "icon": "resources/activity-icon.svg"
         }
       ]
@@ -35,53 +62,53 @@
       {
         "command": "projectContext.generate",
         "title": "Generate Contents",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(go-to-file)"
       },
       {
         "command": "projectContext.copySkeleton",
         "title": "Copy Project Skeleton",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(list-tree)"
       },
       {
         "command": "projectContext.enableStripComments",
         "title": "Strip Comments: off (click to enable)",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(comment)"
       },
       {
         "command": "projectContext.disableStripComments",
         "title": "Strip Comments: on (click to disable)",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(comment-discussion)"
       },
       {
         "command": "projectContext.refresh",
         "title": "Refresh",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(refresh)"
       },
       {
         "command": "projectContext.clear",
         "title": "Clear Selection",
-        "category": "Project Context",
+        "category": "Context Picker",
         "icon": "$(clear-all)"
       },
       {
         "command": "projectContext.addFromExplorer",
-        "title": "Add to Project Context",
-        "category": "Project Context"
+        "title": "Add to Context Picker",
+        "category": "Context Picker"
       },
       {
         "command": "projectContext.copyContentsHere",
         "title": "Copy Contents (with subfolders)",
-        "category": "Project Context"
+        "category": "Context Picker"
       },
       {
         "command": "projectContext.skeletonHere",
         "title": "Copy Skeleton From Here",
-        "category": "Project Context"
+        "category": "Context Picker"
       }
     ],
     "menus": {
@@ -134,7 +161,7 @@
       ]
     },
     "configuration": {
-      "title": "Project Context",
+      "title": "Context Picker",
       "properties": {
         "projectContext.output": {
           "type": "string",
