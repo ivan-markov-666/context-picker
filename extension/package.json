@@ -1,0 +1,197 @@
+{
+  "name": "context-picker",
+  "displayName": "Context Picker",
+  "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
+  "version": "0.1.0",
+  "publisher": "IvanMarkov",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "llm",
+    "ai",
+    "context",
+    "copy",
+    "clipboard",
+    "prompt",
+    "tree",
+    "comments",
+    "codebase"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivan-markov-666/file-copy-project.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ivan-markov-666/file-copy-project/issues"
+  },
+  "galleryBanner": {
+    "color": "#4F46E5",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "projectContext",
+          "title": "Context Picker",
+          "icon": "resources/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "projectContext": [
+        {
+          "id": "projectContext.tree",
+          "name": "Selection"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "projectContext.generate",
+        "title": "Generate Contents",
+        "category": "Context Picker",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "projectContext.copySkeleton",
+        "title": "Copy Project Skeleton",
+        "category": "Context Picker",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "projectContext.enableStripComments",
+        "title": "Strip Comments: off (click to enable)",
+        "category": "Context Picker",
+        "icon": "$(comment)"
+      },
+      {
+        "command": "projectContext.disableStripComments",
+        "title": "Strip Comments: on (click to disable)",
+        "category": "Context Picker",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "projectContext.refresh",
+        "title": "Refresh",
+        "category": "Context Picker",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "projectContext.clear",
+        "title": "Clear Selection",
+        "category": "Context Picker",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "projectContext.addFromExplorer",
+        "title": "Add to Context Picker",
+        "category": "Context Picker"
+      },
+      {
+        "command": "projectContext.copyContentsHere",
+        "title": "Copy Contents (with subfolders)",
+        "category": "Context Picker"
+      },
+      {
+        "command": "projectContext.skeletonHere",
+        "title": "Copy Skeleton From Here",
+        "category": "Context Picker"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "projectContext.enableStripComments",
+          "when": "view == projectContext.tree && !config.projectContext.stripComments",
+          "group": "navigation@0"
+        },
+        {
+          "command": "projectContext.disableStripComments",
+          "when": "view == projectContext.tree && config.projectContext.stripComments",
+          "group": "navigation@0"
+        },
+        {
+          "command": "projectContext.generate",
+          "when": "view == projectContext.tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "projectContext.copySkeleton",
+          "when": "view == projectContext.tree",
+          "group": "navigation@2"
+        },
+        {
+          "command": "projectContext.refresh",
+          "when": "view == projectContext.tree",
+          "group": "navigation@3"
+        },
+        {
+          "command": "projectContext.clear",
+          "when": "view == projectContext.tree",
+          "group": "navigation@4"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "projectContext.addFromExplorer",
+          "group": "9_projectContext@1"
+        },
+        {
+          "command": "projectContext.copyContentsHere",
+          "group": "9_projectContext@2"
+        },
+        {
+          "command": "projectContext.skeletonHere",
+          "when": "explorerResourceIsFolder",
+          "group": "9_projectContext@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Context Picker",
+      "properties": {
+        "projectContext.output": {
+          "type": "string",
+          "enum": ["editor", "clipboard", "file"],
+          "default": "editor",
+          "description": "Where to send generated output: a new editor tab, the clipboard, or a saved file."
+        },
+        "projectContext.stripComments": {
+          "type": "boolean",
+          "default": false,
+          "description": "Strip comments from supported source files when generating contents."
+        },
+        "projectContext.includeEnvFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include the content of .env files (disabled by default to protect secrets)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --require ts-node/register --test test/*.test.ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.84.0",
+    "esbuild": "^0.20.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "@vscode/vsce": "^2.24.0"
+  }
+}

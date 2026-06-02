@@ -1,77 +1,252 @@
 # Project Directory and File Content Scanner
 
----
+[![CI](https://github.com/ivan-markov-666/file-copy-project/actions/workflows/ci.yml/badge.svg)](https://github.com/ivan-markov-666/file-copy-project/actions/workflows/ci.yml)
 
-# Collecting All Directories and File Contents from a Project into a Single File
+A small TypeScript toolkit that helps you turn a project into LLM-friendly context. It offers two commands:
 
-This project provides an easy way to collect the text content of all files and directories from a project into a single file. The final result can easily be passed to any LLM model to assist with faster code development.
+1. **`scanner`** — recursively collects the paths **and contents** of all files into a single text file (with optional comment stripping and `.env` handling).
+2. **`tree`** — prints **only** the directory tree of a project, with the root labelled by the project name.
 
-**Note:**  
-- This is a NodeJS-based project. You need to have NodeJS installed on your system.  
-- After cloning the repository, run `npm install` to install all dependencies.  
-- The scanner can process any project (not only NodeJS projects).
+The final output can easily be pasted into any LLM to assist with faster code development.
 
-## How it works:
-
-To run the project, use the following command:
-```
-npm run scanner -- --dir "C:\projects\mproject-root-folder" --blacklist "C:\projects\mproject-root-folder\blacklist.txt" --output "output.txt" --env --strip-comments
-```
-
-As you can see, there are five types of arguments we can provide:
-
-- `--dir` or `-d` - provide the path to the project we want to scan
-- `--blacklist` or `-b` - provide the path to the blacklist.txt file, where we can specify directories and files to skip
-- `--output` or `-o` - provide the path to the file where we want to save the content of all files and directories
-- `--env` or `-e` - flag that indicates whether to include the content of .env files (by default, they are skipped)
-- `--strip-comments` or `-s` - flag that indicates whether to remove comments from source code files (by default, comments are kept)
+> **Note**
+> - This is a Node.js project. You need Node.js installed (Node 20+ recommended; CI runs on 20, 22 and 24).
+> - After cloning, run `npm install` to install dependencies.
+> - Both commands can process **any** project, not only Node.js ones.
 
 ---
 
-## Usage Examples:
+## Quick start
 
-### Standard scanning (without .env files):
-```
-npm run scanner -- --dir "C:\projects\mproject-root-folder" --blacklist "blacklist.txt" --output "output.txt"
-```
+```bash
+npm install
 
-### Scanning with .env files included (using -e or --env flag):
-```
-npm run scanner -- --dir "C:\projects\mproject-root-folder" --blacklist "blacklist.txt" --output "output.txt" --env
-```
+# Dump every file's path + content into output.txt
+npm run scanner -- --dir "C:\projects\my-project" --output "output.txt"
 
-### Scanning with comment stripping (using -s or --strip-comments flag):
-```
-npm run scanner -- --dir "C:\projects\mproject-root-folder" --blacklist "blacklist.txt" --output "output.txt" --strip-comments
+# Print just the directory tree of the current project
+npm run tree
+
+# Run the test suite
+npm test
 ```
 
-### Scanning with both .env files and comment stripping:
-```
-npm run scanner -- --dir "C:\projects\mproject-root-folder" --blacklist "blacklist.txt" --output "output.txt" --env --strip-comments
+---
+
+## 1. `scanner` — collect paths and file contents
+
+```bash
+npm run scanner -- --dir "C:\projects\my-project" --blacklist "blacklist.txt" --output "output.txt" --env --strip-comments
 ```
 
-## .env File Processing:
+### Options
 
-By default, the program skips the content of .env files to protect sensitive information (keys, passwords, tokens, etc.). When the `--env` parameter is added, .env files are included in the output file with special formatting for better visibility:
+| Option | Alias | Description | Default |
+| --- | --- | --- | --- |
+| `--dir` | `-d` | Path to the project to scan | current directory |
+| `--blacklist` | `-b` | Path to a blacklist file (paths/files to skip) | `<dir>/blacklist.txt` |
+| `--output` | `-o` | Path to the output file | `<dir>/project_files.txt` |
+| `--env` | `-e` | Include the content of `.env` files | disabled |
+| `--strip-comments` | `-s` | Strip comments from source files | disabled |
+| `--help` | `-h` | Show help | — |
+
+Environment variable `DEBUG=1` enables additional debug output.
+
+> The output file is **automatically excluded** from the scan, so it never scans its own (growing) output.
+
+### Examples
+
+```bash
+# Standard scan (no .env contents)
+npm run scanner -- --dir "C:\projects\my-project" --output "output.txt"
+
+# Include .env files
+npm run scanner -- --dir "C:\projects\my-project" --output "output.txt" --env
+
+# Strip comments
+npm run scanner -- --dir "C:\projects\my-project" --output "output.txt" --strip-comments
+
+# Both
+npm run scanner -- --dir "C:\projects\my-project" --output "output.txt" --env --strip-comments
+```
+
+### `.env` file handling
+
+By default the scanner **skips** `.env` file contents to protect secrets (keys, passwords, tokens). With `--env`, they are included with clear markers:
 
 ```
-### Content of .env file ###
+### .env file content ###
 API_KEY=your_secret_key
 DATABASE_URL=your_database_connection_string
 ### End of .env file ###
 ```
 
-## Comment Stripping:
+### Comment stripping
 
-By default, the program keeps all comments in the source code. When the `--strip-comments` parameter is added, comments are removed from supported file types before writing to the output file. This is useful when you want to reduce the output size and focus only on the actual code.
+By default all comments are kept. With `--strip-comments`, comments are removed from supported file types before writing. Powered by [comment-bear](https://www.npmjs.com/package/comment-bear), which supports JavaScript, TypeScript, Python, Ruby, Java, C#, C, C++, HTML, CSS, SQL, YAML, JSON, XML, PHP, Go, Rust, and Swift. Unsupported file types are passed through unchanged.
 
-Comment stripping is powered by the [comment-bear](https://www.npmjs.com/package/comment-bear) package and supports the following languages: JavaScript, TypeScript, Python, Ruby, Java, C#, C, C++, HTML, CSS, SQL, YAML, JSON, XML, PHP, Go, Rust, and Swift.
+### How different files are handled
 
-For unsupported file types, the content is included as-is without modification.
+The scanner always writes the **path** of every (non-blacklisted) entry, then writes its content according to type:
 
-## Additional Options:
+| Entry type | What is written |
+| --- | --- |
+| Text file | The file content (optionally comment-stripped) |
+| Binary / non-text file | `[Binary or non-text content not shown]` |
+| `.env` file | Skipped by default, or wrapped in markers with `--env` |
+| Symbolic link | `[Symbolic link - not followed]` (links are never followed, avoiding cycles) |
+| Special file (socket, FIFO, device) | `[Special file - content not shown]` |
+| Unreadable file | `[Error reading file: <reason>]` (the scan keeps going) |
 
-To see all available options, run:
+Unknown CLI options produce a warning and are ignored, rather than failing silently.
+
+---
+
+## 2. `tree` — print only the project tree
+
+Prints a `tree`-style view of the project. The **root node is labelled with the project name** (the target folder's own name), and `node_modules` / `.git` are ignored by default.
+
+```bash
+npm run tree
 ```
-npm run scanner -- --help
+
+Example output:
+
 ```
+my-project
+├── src/
+│   ├── scanner.ts
+│   └── tree.ts
+├── package.json
+└── README.md
+```
+
+### Options
+
+| Option | Alias | Description | Default |
+| --- | --- | --- | --- |
+| `--dir` | `-d` | Target directory | current directory |
+| `--blacklist` | `-b` | Path to a blacklist file | `<dir>/blacklist.txt` |
+| `--output` | `-o` | Write the tree to a file instead of stdout | stdout |
+| `--depth` | `-L` | Maximum depth to display | unlimited |
+| `--name` | `-n` | Override the root label | the project folder name |
+| `--all` | `-a` | Include `node_modules` / `.git` | disabled |
+| `--help` | `-h` | Show help | — |
+
+Only the tree is written to **stdout** (informational logs go to stderr), so it is safe to redirect:
+
+```bash
+npm run tree -- --dir "C:\projects\my-project" > tree.txt
+# or
+npm run tree -- --dir "C:\projects\my-project" --output tree.txt
+```
+
+---
+
+## The blacklist file
+
+A `blacklist.txt` lists paths to skip, one per line. Lines starting with `#` are comments.
+
+```
+# Directories skipped recursively (matched at any depth)
+node_modules
+.git
+dist
+
+# Specific files skipped by name
+package-lock.json
+yarn.lock
+```
+
+Matching rules:
+- An entry **without an extension** (e.g. `node_modules`, `dist`) or ending in `/` is treated as a **directory** and is skipped wherever it appears in the tree.
+- An entry **with an extension** (e.g. `package-lock.json`) is treated as a **file name** and is skipped wherever a file with that name appears.
+
+---
+
+## Programmatic API
+
+Everything is exported from the package, so you can use it from your own code instead of the CLI:
+
+```ts
+import {
+  runScan,
+  buildProjectTree,
+  renderTree,
+  isBlacklisted,
+} from 'directory-scanner';
+
+// Scan to a file
+await runScan({
+  targetDir: '/path/to/project',
+  blacklistPath: '/path/to/project/blacklist.txt',
+  outputPath: 'output.txt',
+  includeEnvFiles: false,
+  stripComments: true,
+  help: false,
+});
+
+// Build a tree and render it
+const root = await buildProjectTree({
+  targetDir: '/path/to/project',
+  blacklistPath: '/path/to/project/blacklist.txt',
+  outputPath: '',
+  maxDepth: Infinity,
+  includeAll: false,
+  help: false,
+});
+console.log(renderTree(root));
+```
+
+---
+
+## Development
+
+| Script | Purpose |
+| --- | --- |
+| `npm run scanner` / `npm run scan` | Run the scanner via ts-node |
+| `npm run tree` | Run the tree command via ts-node |
+| `npm test` | Run the test suite (Node's built-in test runner) |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run typecheck` | Type-check without emitting |
+| `npm run build` | Compile TypeScript to `dist/` |
+| `npm start` | Run the compiled scanner |
+
+After `npm run build`, the package also exposes two binaries: `directory-scanner` and `directory-tree` (e.g. `npx directory-tree`).
+
+---
+
+## Testing & CI
+
+Tests use Node's built-in test runner (`node:test`) with `ts-node` — no extra test framework is required.
+
+```bash
+npm test                # run all tests
+npm run test:coverage   # run tests and print a coverage report
+npm run typecheck       # type-check the source without emitting
+```
+
+Test files live in `test/` (one `*.test.ts` per module) and cover blacklist matching, file-type detection, comment stripping, tree building/rendering, an end-to-end scan, and the CLI entry points.
+
+**Continuous Integration.** A GitHub Actions workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request to `main`. For each of Node **20, 22 and 24** it runs, in a clean environment:
+
+```
+npm ci → npm run typecheck → npm test → npm run build
+```
+
+The badge at the top of this file shows whether `main` is currently passing.
+
+---
+
+## What's new in 2.1.0
+
+- **New `tree` command** — prints only the project tree, with the root labelled by the project name.
+- **Programmatic API** — all functions are exported (`runScan`, `buildProjectTree`, `renderTree`, …) with TypeScript types; the package also ships two CLI binaries.
+- **Full test suite** — 60+ tests on Node's built-in runner, plus a GitHub Actions CI matrix.
+- **Bug fixes & hardening:**
+  - The scanner no longer scans its own (growing) output file.
+  - Output-stream errors (e.g. an unwritable path) are handled instead of crashing or hanging.
+  - Large scans no longer buffer the whole output in memory (write backpressure is respected).
+  - Symbolic links are no longer followed (no cycles / `EISDIR` noise).
+  - Unknown CLI options now warn instead of being silently ignored.
+- `dist/` is now build output (git-ignored) and is produced on publish.
