@@ -2,6 +2,7 @@ node_modules/
 
 # Build output (compiled on publish via prepublishOnly)
 dist/
+dist-cli/
 
 # Scanner output (default and example names)
 output.txt
