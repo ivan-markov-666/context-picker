@@ -28,8 +28,13 @@ namespace ContextPicker
         public static Task<string> ScanAsync(string nodeExe, string scriptPath, ScanRequest request)
             => RunAsync(nodeExe, scriptPath, ScanJson(request));
 
-        /// <summary>root -> JSON tree listing (with absolute paths) for the checkbox UI.</summary>
-        public static Task<string> TreeJsonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
+        /// <summary>
+        /// root -> a flat, pre-order listing of the workspace for the checkbox UI.
+        /// Each line is "D\t&lt;absPath&gt;" (directory) or "F\t&lt;absPath&gt;" (file); a
+        /// parent always precedes its children, so the host can rebuild the tree
+        /// with zero dependencies. node_modules/.git and .gitignore matches are excluded.
+        /// </summary>
+        public static Task<string> TreeAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
             => RunAsync(nodeExe, scriptPath, ModeJson("tree", rootDir, respectGitignore));
 
         /// <summary>root -> the project skeleton (tree) as text.</summary>

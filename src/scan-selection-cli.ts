@@ -37,14 +37,18 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-/** Serialisable tree node (includes absolute paths for the host to send back). */
-function toJsonTree(node: TreeNode): unknown {
-  return {
-    name: node.name,
-    path: node.path,
-    isDirectory: node.isDirectory,
-    children: node.children.map(toJsonTree),
-  };
+/**
+ * Flattens the tree into pre-order lines `D\t<absPath>` / `F\t<absPath>` so a
+ * host can rebuild the hierarchy with zero dependencies (a parent line always
+ * precedes its children). One line per entry; directories first within a folder.
+ */
+function flattenTree(nodes: TreeNode[], out: string[]): void {
+  for (const node of nodes) {
+    out.push(`${node.isDirectory ? 'D' : 'F'}\t${node.path ?? ''}`);
+    if (node.isDirectory) {
+      flattenTree(node.children, out);
+    }
+  }
 }
 
 export async function main(argv: string[] = process.argv): Promise<void> {
@@ -83,13 +87,9 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   });
 
   if (mode === 'tree') {
-    const root = {
-      name: resolveRootName(rootDir),
-      path: rootDir,
-      isDirectory: true,
-      children: children.map(toJsonTree),
-    };
-    process.stdout.write(JSON.stringify(root));
+    const lines: string[] = [];
+    flattenTree(children, lines);
+    process.stdout.write(lines.join('\n'));
     return;
   }
 

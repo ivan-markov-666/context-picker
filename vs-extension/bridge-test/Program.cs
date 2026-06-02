@@ -1,5 +1,5 @@
 using System;
-using System.Text.Json;
+using System.Linq;
 using System.Threading.Tasks;
 using ContextPicker;
 
@@ -20,14 +20,14 @@ internal static class Program
 
         try
         {
-            // 1) tree mode -> JSON listing
-            string treeJson = await NodeBridge.TreeJsonAsync("node", script, root, respectGitignore: true);
-            using (var doc = JsonDocument.Parse(treeJson))
-            {
-                var rootEl = doc.RootElement;
-                int childCount = rootEl.GetProperty("children").GetArrayLength();
-                Console.WriteLine($"[tree] root='{rootEl.GetProperty("name").GetString()}' children={childCount}");
-            }
+            // 1) tree mode -> flat pre-order listing (zero-dependency parsing)
+            string treeText = await NodeBridge.TreeAsync("node", script, root, respectGitignore: true);
+            string[] entries = treeText.Length == 0
+                ? Array.Empty<string>()
+                : treeText.Split('\n');
+            int dirCount = entries.Count(l => l.StartsWith("D\t"));
+            int fileCount = entries.Count(l => l.StartsWith("F\t"));
+            Console.WriteLine($"[tree] {entries.Length} entries ({dirCount} dirs, {fileCount} files)");
 
             // 2) skeleton mode -> text
             string skeleton = await NodeBridge.SkeletonAsync("node", script, root, respectGitignore: true);
