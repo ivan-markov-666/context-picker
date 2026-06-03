@@ -21,14 +21,32 @@
             <CheckBox Content="Respect .gitignore" IsChecked="{Binding RespectGitignore}" Margin="0,0,10,0"
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         </WrapPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="6,0,6,4">
+            <TextBlock DockPanel.Dock="Top" Text="Filter — paste file paths (one per line):" Margin="0,0,0,2"
+                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="4,0,0,0">
+                <Button Content="Check shown" Command="{Binding CheckShownCommand}" Margin="0,0,4,0" Padding="6,1"/>
+                <Button Content="Clear" Command="{Binding ClearFilterCommand}" Padding="6,1"/>
+            </StackPanel>
+            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="4"
+                VerticalScrollBarVisibility="Auto"/>
+        </DockPanel>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="6,3" TextWrapping="Wrap"
                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         <TreeView ItemsSource="{Binding RootNodes}" BorderThickness="0" Background="Transparent"
               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
             <TreeView.Resources>
+                <BooleanToVisibilityConverter x:Key="BoolToVis"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3399FF"/>
                 <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#3399FF"/>
             </TreeView.Resources>
+            <TreeView.ItemContainerStyle>
+                <Style TargetType="TreeViewItem">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                    <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}"/>
+                </Style>
+            </TreeView.ItemContainerStyle>
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal">

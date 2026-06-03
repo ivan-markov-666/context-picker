@@ -24,6 +24,8 @@ namespace ContextPicker
             GenerateCommand = new RelayCommand(() => RunSafe(GenerateAsync));
             SkeletonCommand = new RelayCommand(() => RunSafe(SkeletonAsync));
             RefreshCommand = new RelayCommand(() => RunSafe(ReloadAsync));
+            ClearFilterCommand = new RelayCommand(() => { SearchText = string.Empty; });
+            CheckShownCommand = new RelayCommand(CheckShown);
         }
 
         public ObservableCollection<FileNode> RootNodes { get; } = new ObservableCollection<FileNode>();
@@ -31,6 +33,8 @@ namespace ContextPicker
         public ICommand GenerateCommand { get; private set; }
         public ICommand SkeletonCommand { get; private set; }
         public ICommand RefreshCommand { get; private set; }
+        public ICommand ClearFilterCommand { get; private set; }
+        public ICommand CheckShownCommand { get; private set; }
 
         private bool _stripComments;
         public bool StripComments
@@ -56,6 +60,19 @@ namespace ContextPicker
                 _respectGitignore = value;
                 OnPropertyChanged("RespectGitignore");
                 RunSafe(ReloadAsync);
+            }
+        }
+
+        private string _searchText = string.Empty;
+        public string SearchText
+        {
+            get { return _searchText; }
+            set
+            {
+                if (_searchText == value) return;
+                _searchText = value;
+                OnPropertyChanged("SearchText");
+                ApplyFilter();
             }
         }
 
@@ -85,6 +102,7 @@ namespace ContextPicker
             FileNode root = BuildTree(_workspaceRoot, flat);
             RootNodes.Clear();
             RootNodes.Add(root);
+            ApplyFilter(); // honour any active filter + open the root
             Status = "Ready. Tick files/folders, then Generate.";
         }
 
@@ -131,6 +149,56 @@ namespace ContextPicker
             string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore);
             ShowOutput(text);
             Status = "Skeleton opened in editor.";
+        }
+
+        /// <summary>Filters the tree to the paths pasted in the search box.</summary>
+        private void ApplyFilter()
+        {
+            string[] terms = ParseTerms(_searchText);
+            int shown = 0;
+            foreach (FileNode root in RootNodes)
+            {
+                root.ApplyFilter(terms);
+                root.IsVisible = true;   // always keep the root node visible
+                root.IsExpanded = true;  // ...and open
+                shown += root.CountVisibleFiles();
+            }
+            if (terms.Length > 0)
+            {
+                Status = "Filter: " + shown + " file(s) match. Tick them (or 'Check shown'), then Generate.";
+            }
+        }
+
+        /// <summary>Checks every file currently visible under the filter.</summary>
+        private void CheckShown()
+        {
+            int shown = 0;
+            foreach (FileNode root in RootNodes)
+            {
+                root.CheckVisibleFiles();
+                shown += root.CountVisibleFiles();
+            }
+            Status = "Checked " + shown + " shown file(s). Click Generate.";
+        }
+
+        /// <summary>Splits the search text into normalized terms (one per line / comma).</summary>
+        private static string[] ParseTerms(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return new string[0];
+            }
+            string[] parts = text.Split(new[] { '\n', '\r', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            var list = new List<string>();
+            foreach (string part in parts)
+            {
+                string t = part.Trim().Replace('\\', '/').ToLowerInvariant();
+                if (t.Length > 0)
+                {
+                    list.Add(t);
+                }
+            }
+            return list.ToArray();
         }
 
         private static void ShowOutput(string text)
