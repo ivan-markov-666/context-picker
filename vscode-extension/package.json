@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -116,6 +116,12 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "projectContext.selectByPaths",
+        "title": "Select Files by Path…",
+        "category": "Context Picker",
+        "icon": "$(search)"
+      },
+      {
         "command": "projectContext.addFromExplorer",
         "title": "Add to Context Picker",
         "category": "Context Picker"
@@ -133,6 +139,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "projectContext.selectByPaths",
+          "when": "view == projectContext.tree",
+          "group": "navigation@0"
+        },
         {
           "command": "projectContext.generate",
           "when": "view == projectContext.tree",
@@ -228,6 +239,14 @@
           "type": "boolean",
           "default": true,
           "description": "Hide files and folders matched by the workspace .gitignore (in the tree, generation and skeleton)."
+        },
+        "projectContext.skeletonExcludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra folder names to exclude from the project skeleton ONLY (e.g. \".github\", \"docs\", \"db-scripts\"). Matched at any depth. Does not affect the tree or Generate Contents."
         }
       }
     }

@@ -143,6 +143,12 @@ export function activate(context: vscode.ExtensionContext): void {
       scheduleCount();
     }),
 
+    vscode.commands.registerCommand('projectContext.selectByPaths', async () => {
+      await selectByPaths(selection);
+      scheduleRefresh();
+      scheduleCount();
+    }),
+
     vscode.commands.registerCommand('projectContext.generate', () => generate(selection)),
 
     vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton()),
@@ -307,6 +313,60 @@ async function generate(selection: SelectionModel): Promise<void> {
   await scanFilesToOutput(folders[0].uri.fsPath, files);
 }
 
+/**
+ * Prompts for a list of file paths (e.g. pasted from an LLM) and ticks every
+ * file whose path contains one of them. Matching is case-insensitive and by
+ * substring, so partial paths or whole folders work too.
+ */
+async function selectByPaths(selection: SelectionModel): Promise<void> {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) {
+    vscode.window.showWarningMessage('Context Picker: open a folder first.');
+    return;
+  }
+
+  const input = await vscode.window.showInputBox({
+    title: 'Context Picker — select files by path',
+    prompt: 'Paste file paths (separated by new lines, commas or spaces). Matching files get ticked.',
+    placeHolder: 'tools/lib/jira-mapping.ts, src/tests/e2e/registrationTest.spec.ts',
+    ignoreFocusOut: true,
+  });
+  if (!input) {
+    return;
+  }
+
+  const terms = input
+    .split(/[\s,;]+/)
+    .map((t) => t.trim().replace(/\\/g, '/').toLowerCase())
+    .filter((t) => t.length > 0);
+  if (terms.length === 0) {
+    return;
+  }
+
+  const isIgnored = await buildIgnorePredicate();
+  const allFiles: string[] = [];
+  for (const folder of folders) {
+    await collectAllFiles(folder.uri.fsPath, allFiles, isIgnored);
+  }
+
+  let matched = 0;
+  for (const file of allFiles) {
+    const norm = file.replace(/\\/g, '/').toLowerCase();
+    if (terms.some((t) => norm.includes(t))) {
+      selection.include(file);
+      matched++;
+    }
+  }
+
+  if (matched === 0) {
+    vscode.window.showInformationMessage('Context Picker: no files matched those paths.');
+  } else {
+    vscode.window.showInformationMessage(
+      `Context Picker: ticked ${matched} matching file(s). Run "Generate Contents".`
+    );
+  }
+}
+
 /** Renders the project skeleton of the first workspace folder. */
 async function copySkeleton(): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
@@ -346,7 +406,12 @@ async function skeletonHere(uri?: vscode.Uri): Promise<void> {
 
 async function deliverSkeleton(dir: string): Promise<void> {
   const isIgnored = await buildIgnorePredicate();
-  const children = await buildTree(dir, dir, { blacklist: [...DEFAULT_IGNORE], isIgnored });
+  // Extra folders to drop from the skeleton only (e.g. .github, docs, db-scripts).
+  const extra = vscode.workspace
+    .getConfiguration('projectContext')
+    .get<string[]>('skeletonExcludeFolders', []);
+  const blacklist = [...DEFAULT_IGNORE, ...extra];
+  const children = await buildTree(dir, dir, { blacklist, isIgnored });
   const tree = { name: resolveRootName(dir), isDirectory: true, children };
   await deliver(renderTree(tree));
 }
