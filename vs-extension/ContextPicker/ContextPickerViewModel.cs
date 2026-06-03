@@ -26,6 +26,8 @@ namespace ContextPicker
             RefreshCommand = new RelayCommand(() => RunSafe(ReloadAsync));
             ClearFilterCommand = new RelayCommand(() => { SearchText = string.Empty; });
             CheckShownCommand = new RelayCommand(CheckShown);
+            AddExcludeCommand = new RelayCommand(AddExclude);
+            LoadSkeletonExcludes();
         }
 
         public ObservableCollection<FileNode> RootNodes { get; } = new ObservableCollection<FileNode>();
@@ -35,6 +37,17 @@ namespace ContextPicker
         public ICommand RefreshCommand { get; private set; }
         public ICommand ClearFilterCommand { get; private set; }
         public ICommand CheckShownCommand { get; private set; }
+        public ICommand AddExcludeCommand { get; private set; }
+
+        /// <summary>Folders the user can omit from Copy Skeleton (ticked = omitted).</summary>
+        public ObservableCollection<SkeletonExcludeItem> SkeletonExcludes { get; } = new ObservableCollection<SkeletonExcludeItem>();
+
+        private string _newExcludeFolder = string.Empty;
+        public string NewExcludeFolder
+        {
+            get { return _newExcludeFolder; }
+            set { _newExcludeFolder = value; OnPropertyChanged("NewExcludeFolder"); }
+        }
 
         private bool _stripComments;
         public bool StripComments
@@ -146,9 +159,17 @@ namespace ContextPicker
                 return;
             }
             Status = "Building skeleton...";
-            string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore);
+            var excludes = new List<string>();
+            foreach (SkeletonExcludeItem item in SkeletonExcludes)
+            {
+                if (item.IsExcluded && !string.IsNullOrWhiteSpace(item.Name))
+                {
+                    excludes.Add(item.Name.Trim());
+                }
+            }
+            string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore, excludes.ToArray());
             ShowOutput(text);
-            Status = "Skeleton opened in editor.";
+            Status = "Skeleton opened in editor (excluded " + excludes.Count + " folder name(s)).";
         }
 
         /// <summary>Filters the tree to the paths pasted in the search box.</summary>
@@ -199,6 +220,104 @@ namespace ContextPicker
                 }
             }
             return list.ToArray();
+        }
+
+        // --- Skeleton excludes (a small, persisted list of folder names) ---
+
+        private static readonly string[] DefaultExcludes = { "node_modules", ".git", "bin", "obj", ".vs" };
+
+        private void AddExclude()
+        {
+            string name = (NewExcludeFolder ?? string.Empty).Trim();
+            if (name.Length == 0) return;
+            foreach (SkeletonExcludeItem existing in SkeletonExcludes)
+            {
+                if (string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.IsExcluded = true; // already in the list -> just turn it on
+                    NewExcludeFolder = string.Empty;
+                    return;
+                }
+            }
+            var item = new SkeletonExcludeItem { Name = name, IsExcluded = true };
+            item.PropertyChanged += OnExcludeItemChanged;
+            SkeletonExcludes.Add(item);
+            NewExcludeFolder = string.Empty;
+            SaveSkeletonExcludes();
+        }
+
+        private void OnExcludeItemChanged(object sender, PropertyChangedEventArgs e)
+        {
+            SaveSkeletonExcludes();
+        }
+
+        private void LoadSkeletonExcludes()
+        {
+            var loaded = new List<SkeletonExcludeItem>();
+            try
+            {
+                string file = ExcludesFilePath();
+                if (File.Exists(file))
+                {
+                    foreach (string raw in File.ReadAllLines(file))
+                    {
+                        string line = raw.Trim();
+                        if (line.Length == 0) continue;
+                        bool excluded = true;
+                        string name = line;
+                        int tab = line.IndexOf('\t');
+                        if (tab >= 0)
+                        {
+                            excluded = line.Substring(0, tab) != "0";
+                            name = line.Substring(tab + 1);
+                        }
+                        if (name.Length > 0)
+                        {
+                            loaded.Add(new SkeletonExcludeItem { Name = name, IsExcluded = excluded });
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (loaded.Count == 0)
+            {
+                foreach (string d in DefaultExcludes)
+                {
+                    loaded.Add(new SkeletonExcludeItem { Name = d, IsExcluded = true });
+                }
+            }
+
+            SkeletonExcludes.Clear();
+            foreach (SkeletonExcludeItem item in loaded)
+            {
+                item.PropertyChanged += OnExcludeItemChanged;
+                SkeletonExcludes.Add(item);
+            }
+        }
+
+        private void SaveSkeletonExcludes()
+        {
+            try
+            {
+                string file = ExcludesFilePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                var lines = new List<string>();
+                foreach (SkeletonExcludeItem item in SkeletonExcludes)
+                {
+                    lines.Add((item.IsExcluded ? "1" : "0") + "\t" + item.Name);
+                }
+                File.WriteAllLines(file, lines);
+            }
+            catch { }
+        }
+
+        private static string ExcludesFilePath()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ContextPicker");
+            return Path.Combine(dir, "skeleton-excludes.tsv");
         }
 
         private static void ShowOutput(string text)
@@ -283,5 +402,29 @@ namespace ContextPicker
                 handler(this, new PropertyChangedEventArgs(name));
             }
         }
+    }
+
+    /// <summary>One folder name in the Copy Skeleton exclude list (ticked = omitted).</summary>
+    public sealed class SkeletonExcludeItem : INotifyPropertyChanged
+    {
+        public string Name { get; set; }
+
+        private bool _isExcluded = true;
+        public bool IsExcluded
+        {
+            get { return _isExcluded; }
+            set
+            {
+                if (_isExcluded == value) return;
+                _isExcluded = value;
+                PropertyChangedEventHandler handler = PropertyChanged;
+                if (handler != null)
+                {
+                    handler(this, new PropertyChangedEventArgs("IsExcluded"));
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
     }
 }

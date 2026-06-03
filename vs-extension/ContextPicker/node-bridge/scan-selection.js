@@ -4595,10 +4595,8 @@ async function main(argv = process.argv) {
     return;
   }
   const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
-  const children = await buildTree(rootDir, rootDir, {
-    blacklist: [...DEFAULT_IGNORE],
-    isIgnored
-  });
+  const blacklist = mode === "skeleton" && Array.isArray(req.excludeFolders) ? req.excludeFolders : [...DEFAULT_IGNORE];
+  const children = await buildTree(rootDir, rootDir, { blacklist, isIgnored });
   if (mode === "tree") {
     const lines = [];
     flattenTree(children, lines);

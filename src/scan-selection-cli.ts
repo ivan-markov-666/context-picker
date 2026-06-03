@@ -27,6 +27,8 @@ interface Request {
   stripComments?: boolean;
   removeBlankLines?: boolean;
   respectGitignore?: boolean;
+  /** skeleton mode only: explicit folder-name excludes (overrides DEFAULT_IGNORE). */
+  excludeFolders?: string[];
 }
 
 async function readStdin(): Promise<string> {
@@ -79,12 +81,15 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     return;
   }
 
-  // tree / skeleton both walk the directory honouring node_modules/.git + .gitignore.
+  // tree / skeleton both walk the directory honouring .gitignore. The tree keeps
+  // the default ignores so the checkbox view stays clean; the skeleton may be
+  // given an explicit folder-exclude list by the host (see excludeFolders).
   const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
-  const children = await buildTree(rootDir, rootDir, {
-    blacklist: [...DEFAULT_IGNORE],
-    isIgnored,
-  });
+  const blacklist =
+    mode === 'skeleton' && Array.isArray(req.excludeFolders)
+      ? req.excludeFolders
+      : [...DEFAULT_IGNORE];
+  const children = await buildTree(rootDir, rootDir, { blacklist, isIgnored });
 
   if (mode === 'tree') {
     const lines: string[] = [];

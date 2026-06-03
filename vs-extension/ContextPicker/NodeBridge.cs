@@ -41,6 +41,13 @@ namespace ContextPicker
         public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
             => RunAsync(nodeExe, scriptPath, ModeJson("skeleton", rootDir, respectGitignore));
 
+        /// <summary>
+        /// root -> project skeleton, with an explicit list of folder names to omit
+        /// (overrides the bridge defaults). An empty list omits nothing.
+        /// </summary>
+        public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore, string[] excludeFolders)
+            => RunAsync(nodeExe, scriptPath, SkeletonJson(rootDir, respectGitignore, excludeFolders));
+
         private static async Task<string> RunAsync(string nodeExe, string scriptPath, string json)
         {
             var psi = new ProcessStartInfo
@@ -108,6 +115,25 @@ namespace ContextPicker
             return "{\"mode\":" + JsonString(mode)
                 + ",\"rootDir\":" + JsonString(rootDir)
                 + ",\"respectGitignore\":" + Bool(respectGitignore) + "}";
+        }
+
+        private static string SkeletonJson(string rootDir, bool respectGitignore, string[] excludeFolders)
+        {
+            var sb = new StringBuilder();
+            sb.Append("{\"mode\":\"skeleton\",");
+            sb.Append("\"rootDir\":").Append(JsonString(rootDir)).Append(',');
+            sb.Append("\"respectGitignore\":").Append(Bool(respectGitignore)).Append(',');
+            sb.Append("\"excludeFolders\":[");
+            if (excludeFolders != null)
+            {
+                for (int i = 0; i < excludeFolders.Length; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(JsonString(excludeFolders[i]));
+                }
+            }
+            sb.Append("]}");
+            return sb.ToString();
         }
 
         private static string Bool(bool b) => b ? "true" : "false";

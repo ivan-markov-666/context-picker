@@ -21,6 +21,28 @@
             <CheckBox Content="Respect .gitignore" IsChecked="{Binding RespectGitignore}" Margin="0,0,10,0"
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         </WrapPanel>
+        <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
+            Header="Copy Skeleton — folders to exclude (ticked = omitted)"
+            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+            <StackPanel Margin="14,2,0,0">
+                <ItemsControl ItemsSource="{Binding SkeletonExcludes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExcluded, Mode=TwoWay}" Margin="0,1"
+                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <DockPanel Margin="0,4,0,0">
+                    <Button DockPanel.Dock="Right" Content="Add" Command="{Binding AddExcludeCommand}" Margin="4,0,0,0" Padding="6,1"/>
+                    <TextBox Text="{Binding NewExcludeFolder, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding AddExcludeCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
+                </DockPanel>
+            </StackPanel>
+        </Expander>
         <DockPanel DockPanel.Dock="Top" Margin="6,0,6,4">
             <TextBlock DockPanel.Dock="Top" Text="Filter — paste file paths (one per line):" Margin="0,0,0,2"
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
