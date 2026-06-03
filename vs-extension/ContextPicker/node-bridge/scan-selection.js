@@ -4407,8 +4407,16 @@ var path3 = __toESM(require("path"));
 
 // src/blacklist.ts
 var DEFAULT_IGNORE = [
+  // Version control & dependency caches
   "node_modules",
-  ".git"
+  ".git",
+  // Generated build output & IDE caches (never useful as context)
+  "bin",
+  // compiled output (.NET and many other build tools)
+  "obj",
+  // intermediate build files (.NET)
+  ".vs"
+  // Visual Studio's hidden solution cache (often the largest folder)
 ];
 function isDirectoryPattern(normalizedItem) {
   const endsWithSlash = normalizedItem.endsWith("/");

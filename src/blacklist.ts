@@ -10,12 +10,19 @@ export interface FileSystemError extends Error {
 
 /**
  * Directory names that are almost never useful in a scan or tree and are
- * therefore ignored by default (e.g. by the `tree` command) even when no
- * blacklist file is provided.
+ * therefore ignored by default (e.g. by the `tree` command, the VS Code
+ * extension and the Visual Studio bridge) even when no blacklist file or
+ * `.gitignore` is present. These are dependency caches and generated build /
+ * IDE output — matched at any depth.
  */
 export const DEFAULT_IGNORE: string[] = [
+  // Version control & dependency caches
   'node_modules',
   '.git',
+  // Generated build output & IDE caches (never useful as context)
+  'bin', // compiled output (.NET and many other build tools)
+  'obj', // intermediate build files (.NET)
+  '.vs', // Visual Studio's hidden solution cache (often the largest folder)
 ];
 
 /**
