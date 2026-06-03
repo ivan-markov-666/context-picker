@@ -1,9 +1,10 @@
 # Project Directory and File Content Scanner
 
-A small TypeScript toolkit that helps you turn a project into LLM-friendly context. It offers two commands:
+A small TypeScript toolkit that helps you turn a project into LLM-friendly context. It offers:
 
-1. **`scanner`** — recursively collects the paths **and contents** of all files into a single text file (with optional comment stripping and `.env` handling).
-2. **`tree`** — prints **only** the directory tree of a project, with the root labelled by the project name.
+1. **`scanner`** (CLI) — recursively collects the paths **and contents** of all files into a single text file (with optional comment stripping and `.env` handling).
+2. **`tree`** (CLI) — prints **only** the directory tree of a project, with the root labelled by the project name.
+3. **Context Picker editor extensions** — pick files/folders visually with checkboxes inside **VS Code** or **Visual Studio**, then copy their contents (or a project skeleton). See [Editor extensions](#editor-extensions).
 
 The final output can easily be pasted into any LLM to assist with faster code development.
 
@@ -141,6 +142,72 @@ npm run tree -- --dir "C:\projects\my-project" --output tree.txt
 
 ---
 
+## Editor extensions
+
+Both editors get the same **Context Picker** UI: a checkbox tree of your project where
+you tick files/folders, then copy their **contents** or a **project skeleton** — with
+toggles for *strip comments*, *remove blank lines* and *respect `.gitignore`*. Both
+extensions reuse the same TypeScript core, so the output matches the CLI.
+
+| Editor | Source folder | Reuses the core via |
+| --- | --- | --- |
+| VS Code | [`vscode-extension/`](vscode-extension/) | direct import (the extension runs in Node) |
+| Visual Studio | [`vs-extension/ContextPicker/`](vs-extension/) | a small Node bridge (`node scan-selection.js`) |
+
+### VS Code extension
+
+**Generate the installer (`.vsix`):**
+
+```bash
+cd vscode-extension
+npm install
+npm run package      # -> context-picker-<version>.vsix  (e.g. context-picker-0.2.0.vsix)
+```
+
+`npm run package` runs `vsce package`, which first bundles the extension (esbuild) and
+then writes the `.vsix`. (`@vscode/vsce` is already a dev dependency; no global install
+needed.)
+
+**Import (install) into VS Code** — either way:
+
+- **From the UI:** open the **Extensions** view (`Ctrl+Shift+X`) → click the `…` menu
+  (top-right of the view) → **Install from VSIX…** → choose the `.vsix` → reload.
+- **From the terminal:** `code --install-extension context-picker-0.2.0.vsix`
+
+After installing, the **Context Picker** icon appears in the **Activity Bar** (left). Open
+a folder, tick files in the tree, then run **Generate Contents** or **Copy Project
+Skeleton** (also available via right-click in the Explorer → **Add to Context Picker**).
+
+### Visual Studio extension
+
+> **To build:** the **"Visual Studio extension development"** workload (VSSDK).
+> **To run (any machine):** **Node.js on PATH** — the extension shells out to `node` to
+> run the shared core. Check with `node --version`.
+
+**Generate the installer (`.vsix`):**
+
+1. Open `vs-extension/ContextPicker/ContextPicker.csproj` (or its `.slnx`) in Visual Studio.
+2. **Build → Build Solution** (`Ctrl+Shift+B`).
+3. The installer is produced at
+   `vs-extension/ContextPicker/bin/Debug/net472/ContextPicker.vsix`.
+
+> If you changed the TypeScript core, first refresh the bundled bridge: from the repo
+> root run `npm run bundle:cli`, then copy `dist-cli/scan-selection.js` over
+> `vs-extension/ContextPicker/node-bridge/scan-selection.js` and rebuild.
+
+**Import (install) into Visual Studio:**
+
+1. **Close all Visual Studio windows.**
+2. **Double-click** `ContextPicker.vsix` → the VSIX Installer opens → **Install** → **Close**.
+3. Reopen Visual Studio → open a **solution** → **Tools → ContextPickerToolWindow**.
+4. **Refresh** → tick files → **Generate** (opens the result in an editor) or **Copy Skeleton**.
+
+The `.vsix` is **self-contained** (the Node bridge is bundled inside), so you can copy it
+to another PC and double-click to install — no source or repo needed there. The target
+needs **Visual Studio 17.14+** (Community, Pro or Enterprise) and **Node.js**.
+
+---
+
 ## The blacklist file
 
 A `blacklist.txt` lists paths to skip, one per line. Lines starting with `#` are comments.
@@ -214,7 +281,7 @@ After `npm run build`, the package also exposes two binaries: `directory-scanner
 
 ---
 
-## Testing & CI
+## Testing
 
 Tests use Node's built-in test runner (`node:test`) with `ts-node` — no extra test framework is required.
 
@@ -226,21 +293,13 @@ npm run typecheck       # type-check the source without emitting
 
 Test files live in `test/` (one `*.test.ts` per module) and cover blacklist matching, file-type detection, comment stripping, tree building/rendering, an end-to-end scan, and the CLI entry points.
 
-**Continuous Integration.** A GitHub Actions workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request to `main`. For each of Node **20, 22 and 24** it runs, in a clean environment:
-
-```
-npm ci → npm run typecheck → npm test → npm run build
-```
-
-The badge at the top of this file shows whether `main` is currently passing.
-
 ---
 
 ## What's new in 2.1.0
 
 - **New `tree` command** — prints only the project tree, with the root labelled by the project name.
 - **Programmatic API** — all functions are exported (`runScan`, `buildProjectTree`, `renderTree`, …) with TypeScript types; the package also ships two CLI binaries.
-- **Full test suite** — 60+ tests on Node's built-in runner, plus a GitHub Actions CI matrix.
+- **Full test suite** — 60+ tests on Node's built-in runner.
 - **Bug fixes & hardening:**
   - The scanner no longer scans its own (growing) output file.
   - Output-stream errors (e.g. an unwritable path) are handled instead of crashing or hanging.

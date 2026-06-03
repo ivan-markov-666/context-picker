@@ -34,7 +34,7 @@ It is a plan only. No extension code is written yet.
 
 ## 2. Repository layout (chosen: separate folder, shared core)
 
-The extension lives in a new top-level `extension/` folder and imports the existing core.
+The extension lives in a new top-level `vscode-extension/` folder and imports the existing core.
 The current project is **not** restructured.
 
 ```
@@ -45,7 +45,7 @@ file-copy-project/
 │   ├── file-utils.ts
 │   ├── scanner.ts
 │   └── tree.ts
-├── extension/                # NEW — the VS Code extension
+├── vscode-extension/                # NEW — the VS Code extension
 │   ├── package.json          # extension manifest (separate from the root one)
 │   ├── tsconfig.json
 │   ├── esbuild.js            # bundler (pulls the core in, no publish needed)
@@ -63,9 +63,9 @@ file-copy-project/
 ### How the extension consumes the core
 The core is plain TypeScript with no browser-hostile dependencies, and a VS Code desktop
 extension runs in **Node.js** — so for the MVP the extension can import the core directly
-and bundle it. Recommended: **esbuild** bundles `extension/src/extension.ts` and follows
+and bundle it. Recommended: **esbuild** bundles `vscode-extension/src/extension.ts` and follows
 the `import { ... } from '../../src/index'` (or from the built `../../dist`) into a single
-`extension/dist/extension.js`. This means:
+`vscode-extension/dist/extension.js`. This means:
 - No need to publish the npm package first.
 - The core stays a single source of truth.
 
@@ -205,7 +205,7 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 
 ---
 
-## 5. Manifest sketch (`extension/package.json`)
+## 5. Manifest sketch (`vscode-extension/package.json`)
 
 ```jsonc
 {
@@ -265,7 +265,7 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 
 ## 6. Build & local run
 
-- **Bundler:** `esbuild` (fast, single-file output). `extension/esbuild.js` builds
+- **Bundler:** `esbuild` (fast, single-file output). `vscode-extension/esbuild.js` builds
   `src/extension.ts` → `dist/extension.js`, bundling the imported core.
 - **Run/debug:** press **F5** in VS Code → an "Extension Development Host" window opens with
   the extension loaded. No publishing needed to use it yourself.
@@ -318,7 +318,7 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
 ---
 
 ## 10. Proposed milestones
-1. **M1 — Spike ✅ done:** scaffold in `extension/`, checkbox tree of the workspace, recursive
+1. **M1 — Spike ✅ done:** scaffold in `vscode-extension/`, checkbox tree of the workspace, recursive
    include/exclude, simulated partial badges, persistence, esbuild bundling of the core.
 2. **M2 — MVP ✅ done:** `scanSelectionToString` + shared `renderFileBody` in core (with tests);
    "Generate Contents" now emits real file contents; "Copy Project Skeleton" via `renderTree`;
