@@ -9,21 +9,18 @@ using System.Windows.Input;
 
 namespace ContextPicker
 {
-    /// <summary>
-    /// Drives the Context Picker tool window: loads the workspace tree (via the
-    /// Node bridge), tracks the toggles, and runs Generate / Copy Skeleton.
-    /// Output goes to the clipboard for v1 (an editor tab can come later).
-    /// </summary>
     public sealed class ContextPickerViewModel : INotifyPropertyChanged
     {
         private readonly string _nodeExe;
         private readonly string _scriptPath;
+        private readonly Func<string> _getWorkspaceRoot;
         private string _workspaceRoot;
 
-        public ContextPickerViewModel(string nodeExe, string scriptPath)
+        public ContextPickerViewModel(string nodeExe, string scriptPath, Func<string> getWorkspaceRoot)
         {
             _nodeExe = nodeExe;
             _scriptPath = scriptPath;
+            _getWorkspaceRoot = getWorkspaceRoot;
             GenerateCommand = new RelayCommand(() => RunSafe(GenerateAsync));
             SkeletonCommand = new RelayCommand(() => RunSafe(SkeletonAsync));
             RefreshCommand = new RelayCommand(() => RunSafe(ReloadAsync));
@@ -58,29 +55,29 @@ namespace ContextPicker
                 if (_respectGitignore == value) return;
                 _respectGitignore = value;
                 OnPropertyChanged("RespectGitignore");
-                RunSafe(ReloadAsync); // changes which entries are shown
+                RunSafe(ReloadAsync);
             }
         }
 
-        private string _status = "Open a folder/solution, then Refresh.";
+        private string _status = "Open a folder/solution, then click Refresh.";
         public string Status
         {
             get { return _status; }
             set { _status = value; OnPropertyChanged("Status"); }
         }
 
-        /// <summary>Called by the tool window once the workspace root is known.</summary>
-        public async Task InitializeAsync(string workspaceRoot)
+        public async Task InitializeAsync()
         {
-            _workspaceRoot = workspaceRoot;
             await ReloadAsync();
         }
 
         private async Task ReloadAsync()
         {
+            _workspaceRoot = _getWorkspaceRoot != null ? _getWorkspaceRoot() : null;
             if (string.IsNullOrEmpty(_workspaceRoot))
             {
-                Status = "No folder or solution is open.";
+                RootNodes.Clear();
+                Status = "No folder or solution is open. Open one, then click Refresh.";
                 return;
             }
             Status = "Loading tree...";
@@ -119,21 +116,36 @@ namespace ContextPicker
                 IncludeEnvFiles = false,
             };
             string text = await NodeBridge.ScanAsync(_nodeExe, _scriptPath, request);
-            Clipboard.SetText(text);
-            Status = "Copied " + files.Count + " file(s) to clipboard (" + text.Length + " chars).";
+            ShowOutput(text);
+            Status = "Generated " + files.Count + " file(s) (" + text.Length + " chars) — opened in editor.";
         }
 
         private async Task SkeletonAsync()
         {
             if (string.IsNullOrEmpty(_workspaceRoot))
             {
-                Status = "No folder or solution is open.";
+                Status = "Nothing loaded. Click Refresh first.";
                 return;
             }
             Status = "Building skeleton...";
             string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore);
-            Clipboard.SetText(text);
-            Status = "Copied project skeleton to clipboard.";
+            ShowOutput(text);
+            Status = "Skeleton opened in editor.";
+        }
+
+        private static void ShowOutput(string text)
+        {
+            // Best-effort clipboard (may be locked by another app -> ignore failures).
+            try { Clipboard.SetText(text); } catch { }
+
+            // Always open the result in an editor so it is never lost.
+            try
+            {
+                string path = Path.Combine(Path.GetTempPath(), "ContextPicker-output.txt");
+                File.WriteAllText(path, text);
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            }
+            catch { }
         }
 
         private static FileNode BuildTree(string rootPath, string flat)
@@ -153,9 +165,9 @@ namespace ContextPicker
                 foreach (string rawLine in flat.Split('\n'))
                 {
                     string line = rawLine.TrimEnd('\r');
-                    if (line.Length < 3) continue; // need "D\t" + at least 1 char
+                    if (line.Length < 3) continue;
                     bool isDir = line[0] == 'D';
-                    string path = line.Substring(2); // skip the "D\t" / "F\t" prefix
+                    string path = line.Substring(2);
                     var node = new FileNode { Name = Path.GetFileName(path), FullPath = path, IsDirectory = isDir };
 
                     string parentPath = Path.GetDirectoryName(path);
