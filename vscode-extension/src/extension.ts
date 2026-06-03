@@ -153,6 +153,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton()),
 
+    vscode.commands.registerCommand('projectContext.configureSkeletonExcludes', () =>
+      configureSkeletonExcludes()
+    ),
+
     vscode.commands.registerCommand(
       'projectContext.addFromExplorer',
       (uri?: vscode.Uri, uris?: vscode.Uri[]) => {
@@ -406,12 +410,58 @@ async function skeletonHere(uri?: vscode.Uri): Promise<void> {
 
 async function deliverSkeleton(dir: string): Promise<void> {
   const isIgnored = await buildIgnorePredicate();
-  // Extra folders to drop from the skeleton only (e.g. .github, docs, db-scripts).
-  const extra = vscode.workspace
+  // The complete list of folder names to omit from the skeleton, editable via
+  // the "Configure Skeleton Excludes" command. Matched at any depth.
+  const excludes = vscode.workspace
     .getConfiguration('projectContext')
-    .get<string[]>('skeletonExcludeFolders', []);
-  const blacklist = [...DEFAULT_IGNORE, ...extra];
-  const children = await buildTree(dir, dir, { blacklist, isIgnored });
+    .get<string[]>('skeletonExcludeFolders', [...DEFAULT_IGNORE]);
+  const children = await buildTree(dir, dir, { blacklist: excludes, isIgnored });
   const tree = { name: resolveRootName(dir), isDirectory: true, children };
   await deliver(renderTree(tree));
+}
+
+/**
+ * Lets the user tick which folders are omitted from Copy Skeleton. Candidates
+ * are the defaults plus the actual top-level folders of the workspace; the
+ * chosen set is saved to the projectContext.skeletonExcludeFolders setting
+ * (workspace scope when a folder is open, so a team shares it).
+ */
+async function configureSkeletonExcludes(): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration('projectContext');
+  const current = cfg.get<string[]>('skeletonExcludeFolders', [...DEFAULT_IGNORE]);
+
+  const candidates = new Set<string>([...DEFAULT_IGNORE, ...current]);
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    try {
+      for (const [name, type] of await vscode.workspace.fs.readDirectory(folder.uri)) {
+        if (type === vscode.FileType.Directory) {
+          candidates.add(name);
+        }
+      }
+    } catch {
+      // Unreadable workspace root — ignore.
+    }
+  }
+
+  const items: vscode.QuickPickItem[] = [...candidates]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ label: name, picked: current.includes(name) }));
+
+  const picked = await vscode.window.showQuickPick(items, {
+    canPickMany: true,
+    title: 'Copy Skeleton — folders to exclude',
+    placeHolder: 'Tick the folders to OMIT from the skeleton (Esc to cancel)',
+  });
+  if (!picked) {
+    return; // cancelled
+  }
+
+  const selected = picked.map((p) => p.label);
+  const target = vscode.workspace.workspaceFolders?.length
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+  await cfg.update('skeletonExcludeFolders', selected, target);
+  vscode.window.showInformationMessage(
+    `Context Picker: ${selected.length} folder name(s) will be omitted from the skeleton.`
+  );
 }

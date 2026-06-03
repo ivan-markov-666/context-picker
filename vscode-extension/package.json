@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -66,6 +66,12 @@
         "title": "Copy Project Skeleton",
         "category": "Context Picker",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "projectContext.configureSkeletonExcludes",
+        "title": "Configure Skeleton Excludes…",
+        "category": "Context Picker",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "projectContext.enableStripComments",
@@ -193,6 +199,11 @@
           "command": "projectContext.clear",
           "when": "view == projectContext.tree",
           "group": "navigation@7"
+        },
+        {
+          "command": "projectContext.configureSkeletonExcludes",
+          "when": "view == projectContext.tree",
+          "group": "navigation@8"
         }
       ],
       "explorer/context": [
@@ -245,8 +256,8 @@
           "items": {
             "type": "string"
           },
-          "default": [],
-          "description": "Extra folder names to exclude from the project skeleton ONLY (e.g. \".github\", \"docs\", \"db-scripts\"). Matched at any depth. Does not affect the tree or Generate Contents."
+          "default": ["node_modules", ".git", "bin", "obj", ".vs"],
+          "description": "The complete list of folder names omitted from Copy Skeleton (matched at any depth). Edit it visually via the \"Configure Skeleton Excludes\" command in the Context Picker view. Affects the skeleton only, not the tree or Generate Contents."
         }
       }
     }
