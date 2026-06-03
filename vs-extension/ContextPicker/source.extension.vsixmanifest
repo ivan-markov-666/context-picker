@@ -3,10 +3,16 @@
   <Metadata>
     <Identity Id="ContextPicker.91559fa1-3c18-4114-9230-5bbcd99eac47" Version="1.0" Language="en-US" Publisher="ContextPicker" />
     <DisplayName>ContextPicker</DisplayName>
-    <Description>Empty VSIX Project.</Description>
+    <Description>Pick files/folders from the open solution and copy their contents (or a project skeleton) for pasting into an LLM. Toggles for stripping comments, removing blank lines and respecting .gitignore.</Description>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14, )">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.14, )">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.14, )">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
   </Installation>
