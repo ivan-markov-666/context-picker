@@ -20,7 +20,7 @@ import { DEFAULT_IGNORE } from './blacklist';
 import { createGitignorePredicate } from './gitignore';
 
 interface Request {
-  mode?: 'scan' | 'tree' | 'skeleton';
+  mode?: 'scan' | 'tree' | 'skeleton' | 'count';
   rootDir?: string;
   includedFiles?: string[];
   includeEnvFiles?: boolean;
@@ -69,7 +69,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   const rootDir = req.rootDir ?? process.cwd();
   const mode = req.mode ?? 'scan';
 
-  if (mode === 'scan') {
+  if (mode === 'scan' || mode === 'count') {
     const text = await scanSelectionToString({
       rootDir,
       includedFiles: req.includedFiles ?? [],
@@ -77,7 +77,14 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false,
     });
-    process.stdout.write(text);
+    if (mode === 'count') {
+      // Return just the size, so the host can show a live counter cheaply.
+      const chars = text.length;
+      const lines = chars === 0 ? 0 : text.split(/\r\n|\r|\n/).length;
+      process.stdout.write(lines + '\t' + chars);
+    } else {
+      process.stdout.write(text);
+    }
     return;
   }
 

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
-import { collectSelectedFiles, collectAllFiles, summarizeSelection } from './collect';
+import { collectSelectedFiles, collectAllFiles } from './collect';
 import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Reuse the directory-scanner core for the actual scanning/skeleton logic.
 // Import from the CLI-free core modules so the bundle never pulls in the
@@ -25,17 +25,16 @@ export function activate(context: vscode.ExtensionContext): void {
   // Footer with the selected file count and approximate size. The walk is async,
   // so it is debounced and runs after the (snappy) tree refresh.
   let countTimer: ReturnType<typeof setTimeout> | undefined;
+  // Sequence guard: each recount bumps this, so a slower run that finishes after
+  // a newer change discards its (stale) result instead of overwriting the message.
+  let countSeq = 0;
   async function updateCount(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       treeView.message = 'Open a folder to begin.';
       return;
     }
-    const isIgnored = await buildIgnorePredicate();
-    const summary = { files: 0, bytes: 0 };
-    for (const folder of folders) {
-      await summarizeSelection(folder.uri.fsPath, selection, summary, isIgnored);
-    }
+    const seq = ++countSeq;
 
     // Show only the transforms that are currently ACTIVE, to keep it compact.
     const cfg = vscode.workspace.getConfiguration('projectContext');
@@ -45,10 +44,45 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!cfg.get<boolean>('respectGitignore', true)) flags.push('incl. .gitignore');
     const tail = flags.length ? ` · ${flags.join(' · ')}` : '';
 
+    const isIgnored = await buildIgnorePredicate();
+    const files: string[] = [];
+    for (const folder of folders) {
+      await collectSelectedFiles(folder.uri.fsPath, selection, files, isIgnored);
+    }
+    if (seq !== countSeq) return; // superseded by a newer change
+
+    if (files.length === 0) {
+      treeView.message = `Tick files and folders to include them${tail}.`;
+      return;
+    }
+
+    // Build the real output (respecting strip-comments / blank-lines) and measure
+    // it, so the counter reflects exactly what "Generate Contents" would produce.
+    treeView.message = `${files.length} file(s) · measuring…${tail}`;
+    const { includeEnvFiles, stripComments, removeBlankLines } = readScanConfig();
+    let text: string;
+    try {
+      text = await scanSelectionToString({
+        rootDir: folders[0].uri.fsPath,
+        includedFiles: files,
+        includeEnvFiles,
+        stripComments,
+        removeBlankLines,
+        isCancelled: () => seq !== countSeq,
+      });
+    } catch {
+      return;
+    }
+    if (seq !== countSeq) return; // superseded
+
+    const chars = text.length;
+    const lines = chars === 0 ? 0 : text.split(/\r\n|\r|\n/).length;
+    const maxChars = cfg.get<number>('maxChars', 0);
+    const over = maxChars > 0 && chars > maxChars;
+    const limit = maxChars > 0 ? ` / ${maxChars.toLocaleString()} max` : '';
+    const prefix = over ? '⚠ OVER LIMIT — ' : '';
     treeView.message =
-      summary.files > 0
-        ? `${summary.files} file(s) selected · ~${formatBytes(summary.bytes)}${tail}. Run "Generate Contents".`
-        : `Tick files and folders to include them${tail}.`;
+      `${prefix}${files.length} file(s) · ${lines.toLocaleString()} lines · ${chars.toLocaleString()} chars${limit}${tail}`;
   }
   function scheduleCount(): void {
     if (countTimer) {
@@ -100,7 +134,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (
         event.affectsConfiguration('projectContext.stripComments') ||
         event.affectsConfiguration('projectContext.removeBlankLines') ||
-        event.affectsConfiguration('projectContext.respectGitignore')
+        event.affectsConfiguration('projectContext.respectGitignore') ||
+        event.affectsConfiguration('projectContext.maxChars')
       ) {
         void updateCount();
       }
@@ -157,6 +192,8 @@ export function activate(context: vscode.ExtensionContext): void {
       configureSkeletonExcludes()
     ),
 
+    vscode.commands.registerCommand('projectContext.setMaxChars', () => setMaxChars()),
+
     vscode.commands.registerCommand(
       'projectContext.addFromExplorer',
       (uri?: vscode.Uri, uris?: vscode.Uri[]) => {
@@ -198,16 +235,6 @@ async function buildIgnorePredicate(): Promise<IgnorePredicate> {
     .get<boolean>('respectGitignore', true);
   const roots = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
   return createGitignorePredicate(roots, respect);
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 type OutputSink = 'editor' | 'clipboard' | 'file';
@@ -464,4 +491,24 @@ async function configureSkeletonExcludes(): Promise<void> {
   vscode.window.showInformationMessage(
     `Context Picker: ${selected.length} folder name(s) will be omitted from the skeleton.`
   );
+}
+
+/** Prompts for the max-characters warning threshold (0 disables it). */
+async function setMaxChars(): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration('projectContext');
+  const current = cfg.get<number>('maxChars', 0);
+  const input = await vscode.window.showInputBox({
+    title: 'Context Picker — max characters',
+    prompt: 'Warn (in the footer) when the generated content exceeds this many characters. 0 = no warning.',
+    value: String(current),
+    validateInput: (v) => (/^\d+$/.test(v.trim()) ? undefined : 'Enter a whole number (0 to disable).'),
+  });
+  if (input === undefined) {
+    return; // cancelled
+  }
+  const n = parseInt(input.trim(), 10) || 0;
+  const target = vscode.workspace.workspaceFolders?.length
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+  await cfg.update('maxChars', n, target);
 }

@@ -4583,7 +4583,7 @@ async function main(argv = process.argv) {
   }
   const rootDir = req.rootDir ?? process.cwd();
   const mode = req.mode ?? "scan";
-  if (mode === "scan") {
+  if (mode === "scan" || mode === "count") {
     const text = await scanSelectionToString({
       rootDir,
       includedFiles: req.includedFiles ?? [],
@@ -4591,7 +4591,13 @@ async function main(argv = process.argv) {
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false
     });
-    process.stdout.write(text);
+    if (mode === "count") {
+      const chars = text.length;
+      const lines = chars === 0 ? 0 : text.split(/\r\n|\r|\n/).length;
+      process.stdout.write(lines + "	" + chars);
+    } else {
+      process.stdout.write(text);
+    }
     return;
   }
   const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
