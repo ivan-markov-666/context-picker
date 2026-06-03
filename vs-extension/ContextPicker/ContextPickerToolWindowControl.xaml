@@ -56,6 +56,26 @@
         </DockPanel>
         <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" Margin="6,3" TextWrapping="Wrap"
                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+        <DockPanel DockPanel.Dock="Bottom" Margin="6,2">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+                <TextBlock Text="Max chars:" VerticalAlignment="Center" Margin="0,0,4,0"
+                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                <TextBox Text="{Binding MaxCharsText, UpdateSourceTrigger=PropertyChanged}" Width="70" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsOverLimit}" Value="True">
+                                <Setter Property="Foreground" Value="#FF5555"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </DockPanel>
         <TreeView ItemsSource="{Binding RootNodes}" BorderThickness="0" Background="Transparent"
               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
             <TreeView.Resources>

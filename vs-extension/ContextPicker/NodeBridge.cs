@@ -15,6 +15,13 @@ namespace ContextPicker
         public bool RemoveBlankLines { get; set; }
     }
 
+    /// <summary>Result of the bridge "count" mode: the size the scan would produce.</summary>
+    public struct ScanCount
+    {
+        public int Lines;
+        public int Chars;
+    }
+
     /// <summary>
     /// Invokes the bundled Node CLI (scan-selection.js) to reuse the
     /// directory-scanner core (including comment-bear). Three modes:
@@ -26,7 +33,21 @@ namespace ContextPicker
     {
         /// <summary>files -> formatted contents.</summary>
         public static Task<string> ScanAsync(string nodeExe, string scriptPath, ScanRequest request)
-            => RunAsync(nodeExe, scriptPath, ScanJson(request));
+            => RunAsync(nodeExe, scriptPath, ScanJson("scan", request));
+
+        /// <summary>files -> the size the scan would produce (lines + chars), for a live counter.</summary>
+        public static async Task<ScanCount> CountAsync(string nodeExe, string scriptPath, ScanRequest request)
+        {
+            string outp = await RunAsync(nodeExe, scriptPath, ScanJson("count", request)).ConfigureAwait(false);
+            int tab = outp.IndexOf('\t');
+            int lines = 0, chars = 0;
+            if (tab > 0)
+            {
+                int.TryParse(outp.Substring(0, tab).Trim(), out lines);
+                int.TryParse(outp.Substring(tab + 1).Trim(), out chars);
+            }
+            return new ScanCount { Lines = lines, Chars = chars };
+        }
 
         /// <summary>
         /// root -> a flat, pre-order listing of the workspace for the checkbox UI.
@@ -91,10 +112,10 @@ namespace ContextPicker
             }
         }
 
-        private static string ScanJson(ScanRequest r)
+        private static string ScanJson(string mode, ScanRequest r)
         {
             var sb = new StringBuilder();
-            sb.Append("{\"mode\":\"scan\",");
+            sb.Append("{\"mode\":").Append(JsonString(mode)).Append(',');
             sb.Append("\"rootDir\":").Append(JsonString(r.RootDir)).Append(',');
             sb.Append("\"includedFiles\":[");
             for (int i = 0; i < r.IncludedFiles.Length; i++)

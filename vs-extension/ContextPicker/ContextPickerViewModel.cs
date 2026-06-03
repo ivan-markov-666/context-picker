@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace ContextPicker
 {
@@ -28,6 +29,10 @@ namespace ContextPicker
             CheckShownCommand = new RelayCommand(CheckShown);
             AddExcludeCommand = new RelayCommand(AddExclude);
             LoadSkeletonExcludes();
+            LoadMaxChars();
+
+            _recountTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            _recountTimer.Tick += (s, e) => { _recountTimer.Stop(); _ = RecountSafeAsync(); };
         }
 
         public ObservableCollection<FileNode> RootNodes { get; } = new ObservableCollection<FileNode>();
@@ -53,14 +58,51 @@ namespace ContextPicker
         public bool StripComments
         {
             get { return _stripComments; }
-            set { _stripComments = value; OnPropertyChanged("StripComments"); }
+            set { _stripComments = value; OnPropertyChanged("StripComments"); ScheduleRecount(); }
         }
 
         private bool _removeBlankLines;
         public bool RemoveBlankLines
         {
             get { return _removeBlankLines; }
-            set { _removeBlankLines = value; OnPropertyChanged("RemoveBlankLines"); }
+            set { _removeBlankLines = value; OnPropertyChanged("RemoveBlankLines"); ScheduleRecount(); }
+        }
+
+        // --- Live size counter (lines/chars of what Generate would produce) ---
+
+        private readonly DispatcherTimer _recountTimer;
+        private int _countSeq;
+        private int _countFiles, _countLines, _countChars;
+        private int _maxChars;
+
+        private string _countText = "No files selected.";
+        public string CountText
+        {
+            get { return _countText; }
+            set { _countText = value; OnPropertyChanged("CountText"); }
+        }
+
+        private bool _isOverLimit;
+        public bool IsOverLimit
+        {
+            get { return _isOverLimit; }
+            set { if (_isOverLimit != value) { _isOverLimit = value; OnPropertyChanged("IsOverLimit"); } }
+        }
+
+        private string _maxCharsText = "0";
+        public string MaxCharsText
+        {
+            get { return _maxCharsText; }
+            set
+            {
+                if (_maxCharsText == value) return;
+                _maxCharsText = value;
+                OnPropertyChanged("MaxCharsText");
+                int parsed;
+                _maxChars = (int.TryParse((value ?? string.Empty).Trim(), out parsed) && parsed > 0) ? parsed : 0;
+                UpdateCountText();
+                SaveMaxChars();
+            }
         }
 
         private bool _respectGitignore = true;
@@ -115,8 +157,10 @@ namespace ContextPicker
             FileNode root = BuildTree(_workspaceRoot, flat);
             RootNodes.Clear();
             RootNodes.Add(root);
+            SubscribeToNodes(root); // so the live counter reacts to ticking
             ApplyFilter(); // honour any active filter + open the root
             Status = "Ready. Tick files/folders, then Generate.";
+            ScheduleRecount();
         }
 
         private async Task GenerateAsync()
@@ -220,6 +264,140 @@ namespace ContextPicker
                 }
             }
             return list.ToArray();
+        }
+
+        // --- Live size counter implementation ---
+
+        private void ScheduleRecount()
+        {
+            if (_recountTimer == null) return;
+            _recountTimer.Stop();
+            _recountTimer.Start();
+        }
+
+        private void SubscribeToNodes(FileNode node)
+        {
+            node.PropertyChanged += OnNodeChanged;
+            foreach (FileNode child in node.Children)
+            {
+                SubscribeToNodes(child);
+            }
+        }
+
+        private void OnNodeChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "IsChecked")
+            {
+                ScheduleRecount();
+            }
+        }
+
+        private async Task RecountSafeAsync()
+        {
+            int seq = ++_countSeq;
+            try
+            {
+                if (string.IsNullOrEmpty(_workspaceRoot) || RootNodes.Count == 0)
+                {
+                    SetCount(0, 0, 0);
+                    return;
+                }
+                var files = new List<string>();
+                foreach (FileNode root in RootNodes)
+                {
+                    root.CollectCheckedFiles(files);
+                }
+                if (files.Count == 0)
+                {
+                    SetCount(0, 0, 0);
+                    return;
+                }
+
+                CountText = files.Count + " file(s) · measuring…";
+                var request = new ScanRequest
+                {
+                    RootDir = _workspaceRoot,
+                    IncludedFiles = files.ToArray(),
+                    StripComments = StripComments,
+                    RemoveBlankLines = RemoveBlankLines,
+                    IncludeEnvFiles = false,
+                };
+                ScanCount count = await NodeBridge.CountAsync(_nodeExe, _scriptPath, request);
+                if (seq != _countSeq) return; // a newer change superseded this run
+                SetCount(files.Count, count.Lines, count.Chars);
+            }
+            catch
+            {
+                if (seq == _countSeq)
+                {
+                    CountText = "(size unavailable)";
+                }
+            }
+        }
+
+        private void SetCount(int files, int lines, int chars)
+        {
+            _countFiles = files;
+            _countLines = lines;
+            _countChars = chars;
+            UpdateCountText();
+        }
+
+        private void UpdateCountText()
+        {
+            bool over = _maxChars > 0 && _countChars > _maxChars;
+            IsOverLimit = over;
+
+            if (_countFiles == 0)
+            {
+                CountText = _maxChars > 0
+                    ? "No files selected. (limit " + _maxChars.ToString("N0") + " chars)"
+                    : "No files selected.";
+                return;
+            }
+
+            string limit = _maxChars > 0 ? " / " + _maxChars.ToString("N0") + " max" : string.Empty;
+            string prefix = over ? "OVER LIMIT — " : string.Empty;
+            CountText = prefix + _countFiles + " file(s) · "
+                + _countLines.ToString("N0") + " lines · "
+                + _countChars.ToString("N0") + " chars" + limit;
+        }
+
+        private static string MaxCharsFilePath()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ContextPicker");
+            return Path.Combine(dir, "max-chars.txt");
+        }
+
+        private void LoadMaxChars()
+        {
+            try
+            {
+                string file = MaxCharsFilePath();
+                if (File.Exists(file))
+                {
+                    int n;
+                    if (int.TryParse(File.ReadAllText(file).Trim(), out n) && n > 0)
+                    {
+                        _maxChars = n;
+                        _maxCharsText = n.ToString();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveMaxChars()
+        {
+            try
+            {
+                string file = MaxCharsFilePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, _maxChars.ToString());
+            }
+            catch { }
         }
 
         // --- Skeleton excludes (a small, persisted list of folder names) ---
