@@ -10,6 +10,8 @@
     <DockPanel LastChildFill="True">
         <WrapPanel DockPanel.Dock="Top" Margin="4">
             <Button Content="Generate" Command="{Binding GenerateCommand}" Margin="2" Padding="8,2"/>
+            <Button Content="Copy Files" Command="{Binding CopyFilesCommand}" Margin="2" Padding="8,2"
+                ToolTip="Copy selected files into one folder and open it (drag them into your chat)."/>
             <Button Content="Copy Skeleton" Command="{Binding SkeletonCommand}" Margin="2" Padding="8,2"/>
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="2" Padding="8,2"/>
         </WrapPanel>
