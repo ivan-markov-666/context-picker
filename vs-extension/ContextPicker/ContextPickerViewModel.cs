@@ -28,7 +28,7 @@ namespace ContextPicker
             ClearFilterCommand = new RelayCommand(() => { SearchText = string.Empty; });
             CheckShownCommand = new RelayCommand(CheckShown);
             AddExcludeCommand = new RelayCommand(AddExclude);
-            CopyFilesCommand = new RelayCommand(CopyFilesToFolder);
+            CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
             LoadSkeletonExcludes();
             LoadMaxChars();
 
@@ -223,7 +223,7 @@ namespace ContextPicker
         /// and opens it, so they can be dragged straight into an LLM chat. Original
         /// files are copied; same-named files get the parent folder prefixed.
         /// </summary>
-        private void CopyFilesToFolder()
+        private async Task CopyFilesAsync()
         {
             if (RootNodes.Count == 0)
             {
@@ -241,61 +241,19 @@ namespace ContextPicker
                 return;
             }
 
+            Status = "Copying " + files.Count + " file(s)...";
+            string dir = Path.Combine(Path.GetTempPath(), "ContextPicker-files");
+            int written = await NodeBridge.CopyFilesAsync(
+                _nodeExe, _scriptPath, dir, files.ToArray(), StripComments, RemoveBlankLines);
+
             try
             {
-                string dir = Path.Combine(Path.GetTempPath(), "ContextPicker-files");
-                Directory.CreateDirectory(dir);
-                // Clean the contents (keep the folder itself — it may be open in Explorer).
-                foreach (string existing in Directory.GetFiles(dir))
-                {
-                    try { File.Delete(existing); } catch { }
-                }
-                foreach (string sub in Directory.GetDirectories(dir))
-                {
-                    try { Directory.Delete(sub, true); } catch { }
-                }
-
-                var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                int copied = 0;
-                foreach (string file in files)
-                {
-                    string name = UniqueFlatName(file, used);
-                    File.Copy(file, Path.Combine(dir, name), true);
-                    copied++;
-                }
-
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
-                Status = "Copied " + copied + " file(s) to a folder — drag them into your chat.";
             }
-            catch (Exception ex)
-            {
-                Status = "Error copying files: " + ex.Message;
-            }
-        }
+            catch { }
 
-        private static string UniqueFlatName(string filePath, HashSet<string> used)
-        {
-            string baseName = Path.GetFileName(filePath);
-            string name = baseName;
-            if (used.Contains(name))
-            {
-                string parent = Path.GetFileName(Path.GetDirectoryName(filePath) ?? string.Empty);
-                if (!string.IsNullOrEmpty(parent))
-                {
-                    name = parent + "_" + baseName;
-                }
-            }
-            string candidate = name;
-            int i = 2;
-            while (used.Contains(candidate))
-            {
-                string ext = Path.GetExtension(name);
-                string stem = name.Substring(0, name.Length - ext.Length);
-                candidate = stem + "_" + i + ext;
-                i++;
-            }
-            used.Add(candidate);
-            return candidate;
+            string note = (StripComments || RemoveBlankLines) ? " (transforms applied)" : string.Empty;
+            Status = "Copied " + written + " file(s) to a folder" + note + " — drag them into your chat.";
         }
 
         /// <summary>Filters the tree to the paths pasted in the search box.</summary>

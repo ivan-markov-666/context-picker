@@ -14,14 +14,16 @@
  * Usage:  echo <json> | node scan-selection.js      |      node scan-selection.js request.json
  */
 import * as fs from 'fs';
-import { scanSelectionToString } from './scan-core';
+import { scanSelectionToString, copySelectionToDir } from './scan-core';
 import { buildTree, renderTree, resolveRootName, TreeNode } from './tree-core';
 import { DEFAULT_IGNORE } from './blacklist';
 import { createGitignorePredicate } from './gitignore';
 
 interface Request {
-  mode?: 'scan' | 'tree' | 'skeleton' | 'count';
+  mode?: 'scan' | 'tree' | 'skeleton' | 'count' | 'copyfiles';
   rootDir?: string;
+  /** copyfiles mode only: destination directory for the exported copies. */
+  targetDir?: string;
   includedFiles?: string[];
   includeEnvFiles?: boolean;
   stripComments?: boolean;
@@ -85,6 +87,22 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     } else {
       process.stdout.write(text);
     }
+    return;
+  }
+
+  if (mode === 'copyfiles') {
+    if (!req.targetDir) {
+      process.stderr.write('scan-selection: copyfiles requires a targetDir\n');
+      process.exitCode = 2;
+      return;
+    }
+    const written = await copySelectionToDir({
+      targetDir: req.targetDir,
+      includedFiles: req.includedFiles ?? [],
+      stripComments: req.stripComments ?? false,
+      removeBlankLines: req.removeBlankLines ?? false,
+    });
+    process.stdout.write(String(written));
     return;
   }
 

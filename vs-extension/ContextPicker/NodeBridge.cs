@@ -50,6 +50,18 @@ namespace ContextPicker
         }
 
         /// <summary>
+        /// Copies the given files into targetDir (cleaned first), applying comment /
+        /// blank-line stripping to text files when requested. Returns the count written.
+        /// </summary>
+        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines)
+        {
+            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines)).ConfigureAwait(false);
+            int n;
+            int.TryParse(outp.Trim(), out n);
+            return n;
+        }
+
+        /// <summary>
         /// root -> a flat, pre-order listing of the workspace for the checkbox UI.
         /// Each line is "D\t&lt;absPath&gt;" (directory) or "F\t&lt;absPath&gt;" (file); a
         /// parent always precedes its children, so the host can rebuild the tree
@@ -127,6 +139,27 @@ namespace ContextPicker
             sb.Append("\"includeEnvFiles\":").Append(Bool(r.IncludeEnvFiles)).Append(',');
             sb.Append("\"stripComments\":").Append(Bool(r.StripComments)).Append(',');
             sb.Append("\"removeBlankLines\":").Append(Bool(r.RemoveBlankLines));
+            sb.Append('}');
+            return sb.ToString();
+        }
+
+        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines)
+        {
+            var sb = new StringBuilder();
+            sb.Append("{\"mode\":\"copyfiles\",");
+            sb.Append("\"targetDir\":").Append(JsonString(targetDir)).Append(',');
+            sb.Append("\"includedFiles\":[");
+            if (files != null)
+            {
+                for (int i = 0; i < files.Length; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append(JsonString(files[i]));
+                }
+            }
+            sb.Append("],");
+            sb.Append("\"stripComments\":").Append(Bool(stripComments)).Append(',');
+            sb.Append("\"removeBlankLines\":").Append(Bool(removeBlankLines));
             sb.Append('}');
             return sb.ToString();
         }

@@ -273,8 +273,8 @@ var require_language_detector = __commonJS({
         return void 0;
       }
       const normalized = filename.trim().replace(/\.+$/, "");
-      const basename3 = normalized.replace(/^.*[\\/]/, "").toLowerCase();
-      const specialName = SPECIAL_FILENAMES[basename3];
+      const basename4 = normalized.replace(/^.*[\\/]/, "").toLowerCase();
+      const specialName = SPECIAL_FILENAMES[basename4];
       if (specialName) {
         return specialName;
       }
@@ -509,7 +509,7 @@ var require_config = __commonJS({
     exports2.loadConfig = loadConfig;
     exports2.validateConfig = validateConfig;
     exports2.mergeConfig = mergeConfig;
-    var fs5 = __importStar(require("fs"));
+    var fs6 = __importStar(require("fs"));
     var path5 = __importStar(require("path"));
     var CONFIG_FILENAMES = [
       ".commentbearrc",
@@ -521,7 +521,7 @@ var require_config = __commonJS({
       while (true) {
         for (const filename of CONFIG_FILENAMES) {
           const configPath = path5.join(dir, filename);
-          if (fs5.existsSync(configPath)) {
+          if (fs6.existsSync(configPath)) {
             return configPath;
           }
         }
@@ -538,10 +538,10 @@ var require_config = __commonJS({
       if (!resolvedPath) {
         return {};
       }
-      if (!fs5.existsSync(resolvedPath)) {
+      if (!fs6.existsSync(resolvedPath)) {
         throw new Error(`Config file not found: ${resolvedPath}`);
       }
-      const content = fs5.readFileSync(resolvedPath, "utf-8").trim();
+      const content = fs6.readFileSync(resolvedPath, "utf-8").trim();
       if (!content) {
         return {};
       }
@@ -4237,9 +4237,10 @@ __export(scan_selection_cli_exports, {
   main: () => main
 });
 module.exports = __toCommonJS(scan_selection_cli_exports);
-var fs4 = __toESM(require("fs"));
+var fs5 = __toESM(require("fs"));
 
 // src/scan-core.ts
+var fs2 = __toESM(require("fs"));
 var path2 = __toESM(require("path"));
 
 // src/comment-stripper.ts
@@ -4374,6 +4375,62 @@ ${content2}
 function stripBlankLines(content) {
   return content.split("\n").filter((line) => line.trim() !== "").join("\n");
 }
+async function processFileForCopy(filePath, stripComments, removeBlankLines) {
+  if (!stripComments && !removeBlankLines) {
+    return null;
+  }
+  if (isEnvFile(filePath) || !isTextFile(filePath)) {
+    return null;
+  }
+  let content = await safeReadFile(filePath);
+  if (stripComments) {
+    content = stripCommentsFromFile(content, filePath);
+  }
+  if (removeBlankLines) {
+    content = stripBlankLines(content);
+  }
+  return content;
+}
+function uniqueFlatName(filePath, used) {
+  const base = path2.basename(filePath);
+  let name = base;
+  if (used.has(name.toLowerCase())) {
+    const parent = path2.basename(path2.dirname(filePath));
+    if (parent) {
+      name = `${parent}_${base}`;
+    }
+  }
+  let candidate = name;
+  let i = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const ext = path2.extname(name);
+    const stem = name.slice(0, name.length - ext.length);
+    candidate = `${stem}_${i}${ext}`;
+    i += 1;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+async function copySelectionToDir(options) {
+  const { targetDir, includedFiles, stripComments, removeBlankLines } = options;
+  await fs2.promises.mkdir(targetDir, { recursive: true });
+  for (const entry of await fs2.promises.readdir(targetDir)) {
+    await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
+  }
+  const used = /* @__PURE__ */ new Set();
+  let written = 0;
+  for (const file of includedFiles) {
+    const dest = path2.join(targetDir, uniqueFlatName(file, used));
+    const processed = await processFileForCopy(file, stripComments, removeBlankLines);
+    if (processed === null) {
+      await fs2.promises.copyFile(file, dest);
+    } else {
+      await fs2.promises.writeFile(dest, processed, "utf8");
+    }
+    written += 1;
+  }
+  return written;
+}
 async function scanSelectionToString(options) {
   const {
     rootDir,
@@ -4402,7 +4459,7 @@ ${body}`;
 }
 
 // src/tree-core.ts
-var fs2 = __toESM(require("fs"));
+var fs3 = __toESM(require("fs"));
 var path3 = __toESM(require("path"));
 
 // src/blacklist.ts
@@ -4465,7 +4522,7 @@ async function buildTree(dirPath, basePath, options = {}, depth = 1) {
   const { blacklist = [], maxDepth = Infinity, isIgnored } = options;
   let entries;
   try {
-    entries = await fs2.promises.readdir(dirPath, { withFileTypes: true });
+    entries = await fs3.promises.readdir(dirPath, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -4513,13 +4570,13 @@ function resolveRootName(targetDir, explicitName) {
 }
 
 // src/gitignore.ts
-var fs3 = __toESM(require("fs"));
+var fs4 = __toESM(require("fs"));
 var path4 = __toESM(require("path"));
 var import_ignore = __toESM(require_ignore());
 var ALLOW_ALL = () => false;
 async function loadMatcher(root) {
   try {
-    const content = await fs3.promises.readFile(path4.join(root, ".gitignore"), "utf-8");
+    const content = await fs4.promises.readFile(path4.join(root, ".gitignore"), "utf-8");
     return (0, import_ignore.default)().add(content);
   } catch {
     return null;
@@ -4571,7 +4628,7 @@ function flattenTree(nodes, out) {
 }
 async function main(argv = process.argv) {
   const fileArg = argv[2];
-  const raw = fileArg ? fs4.readFileSync(fileArg, "utf-8") : await readStdin();
+  const raw = fileArg ? fs5.readFileSync(fileArg, "utf-8") : await readStdin();
   let req;
   try {
     req = JSON.parse(raw);
@@ -4598,6 +4655,21 @@ async function main(argv = process.argv) {
     } else {
       process.stdout.write(text);
     }
+    return;
+  }
+  if (mode === "copyfiles") {
+    if (!req.targetDir) {
+      process.stderr.write("scan-selection: copyfiles requires a targetDir\n");
+      process.exitCode = 2;
+      return;
+    }
+    const written = await copySelectionToDir({
+      targetDir: req.targetDir,
+      includedFiles: req.includedFiles ?? [],
+      stripComments: req.stripComments ?? false,
+      removeBlankLines: req.removeBlankLines ?? false
+    });
+    process.stdout.write(String(written));
     return;
   }
   const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);

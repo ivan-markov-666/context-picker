@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import * as os from 'os';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
@@ -9,7 +8,7 @@ import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Reuse the directory-scanner core for the actual scanning/skeleton logic.
 // Import from the CLI-free core modules so the bundle never pulls in the
 // `scanner.ts`/`tree.ts` CLI entry points (shebang / `require.main` guard).
-import { scanSelectionToString } from '../../src/scan-core';
+import { scanSelectionToString, copySelectionToDir } from '../../src/scan-core';
 import { buildTree, renderTree, resolveRootName } from '../../src/tree-core';
 import { DEFAULT_IGNORE } from '../../src/blacklist';
 
@@ -352,8 +351,9 @@ async function generate(selection: SelectionModel): Promise<void> {
 
 /**
  * Copies the selected files into a single folder (cleaned on each run) and opens
- * it, so they can be dragged straight into an LLM chat. Original files are copied
- * as-is; same-named files get their parent folder prefixed to stay unique.
+ * it, so they can be dragged straight into an LLM chat. When "Strip comments" /
+ * "Remove blank lines" are on, text files are written transformed; binary and
+ * .env files are always copied verbatim.
  */
 async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
@@ -372,51 +372,23 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
     return;
   }
 
+  const { stripComments, removeBlankLines } = readScanConfig();
   const dir = path.join(os.tmpdir(), 'context-picker-files');
   try {
-    await fs.promises.mkdir(dir, { recursive: true });
-    // Clean the folder's contents (keep the folder itself — it may be open in Explorer).
-    for (const entry of await fs.promises.readdir(dir)) {
-      await fs.promises.rm(path.join(dir, entry), { recursive: true, force: true });
-    }
-
-    const used = new Set<string>();
-    let copied = 0;
-    for (const file of files) {
-      const name = uniqueFlatName(file, used);
-      await fs.promises.copyFile(file, path.join(dir, name));
-      copied++;
-    }
-
+    const written = await copySelectionToDir({
+      targetDir: dir,
+      includedFiles: files,
+      stripComments,
+      removeBlankLines,
+    });
     await vscode.env.openExternal(vscode.Uri.file(dir));
+    const note = stripComments || removeBlankLines ? ' (transforms applied)' : '';
     vscode.window.showInformationMessage(
-      `Context Picker: copied ${copied} file(s) to a folder — drag them into your chat.`
+      `Context Picker: copied ${written} file(s) to a folder${note} — drag them into your chat.`
     );
   } catch (err) {
     vscode.window.showErrorMessage(`Context Picker: could not copy files — ${String(err)}`);
   }
-}
-
-/** Builds a unique, readable flat file name for the collect-to-folder feature. */
-function uniqueFlatName(filePath: string, used: Set<string>): string {
-  const base = path.basename(filePath);
-  let name = base;
-  if (used.has(name.toLowerCase())) {
-    const parent = path.basename(path.dirname(filePath));
-    if (parent) {
-      name = `${parent}_${base}`;
-    }
-  }
-  let candidate = name;
-  let i = 2;
-  while (used.has(candidate.toLowerCase())) {
-    const ext = path.extname(name);
-    const stem = name.slice(0, name.length - ext.length);
-    candidate = `${stem}_${i}${ext}`;
-    i++;
-  }
-  used.add(candidate.toLowerCase());
-  return candidate;
 }
 
 /**
