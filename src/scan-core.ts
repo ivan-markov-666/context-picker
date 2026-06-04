@@ -106,6 +106,12 @@ export interface CopyFilesOptions {
   stripComments: boolean;
   /** Drop blank/whitespace-only lines from text files before writing. */
   removeBlankLines: boolean;
+  /**
+   * Append `.txt` to every copied file (e.g. `app.ts` -> `app.ts.txt`) so that
+   * tools which block source extensions (e.g. Microsoft 365 Copilot) accept the
+   * uploads while keeping the original extension visible in the name.
+   */
+  appendTxtExtension?: boolean;
 }
 
 /**
@@ -114,7 +120,7 @@ export interface CopyFilesOptions {
  * and `.env` files are copied verbatim. Returns the number of files written.
  */
 export async function copySelectionToDir(options: CopyFilesOptions): Promise<number> {
-  const { targetDir, includedFiles, stripComments, removeBlankLines } = options;
+  const { targetDir, includedFiles, stripComments, removeBlankLines, appendTxtExtension } = options;
 
   await fs.promises.mkdir(targetDir, { recursive: true });
   // Clear the contents but keep the folder itself (it may be open in a file manager).
@@ -125,7 +131,11 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
   const used = new Set<string>();
   let written = 0;
   for (const file of includedFiles) {
-    const dest = path.join(targetDir, uniqueFlatName(file, used));
+    let name = uniqueFlatName(file, used);
+    if (appendTxtExtension) {
+      name += '.txt';
+    }
+    const dest = path.join(targetDir, name);
     const processed = await processFileForCopy(file, stripComments, removeBlankLines);
     if (processed === null) {
       await fs.promises.copyFile(file, dest);

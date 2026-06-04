@@ -53,9 +53,9 @@ namespace ContextPicker
         /// Copies the given files into targetDir (cleaned first), applying comment /
         /// blank-line stripping to text files when requested. Returns the count written.
         /// </summary>
-        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines)
+        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt)
         {
-            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines)).ConfigureAwait(false);
+            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines, appendTxt)).ConfigureAwait(false);
             int n;
             int.TryParse(outp.Trim(), out n);
             return n;
@@ -143,7 +143,7 @@ namespace ContextPicker
             return sb.ToString();
         }
 
-        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines)
+        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt)
         {
             var sb = new StringBuilder();
             sb.Append("{\"mode\":\"copyfiles\",");
@@ -159,7 +159,8 @@ namespace ContextPicker
             }
             sb.Append("],");
             sb.Append("\"stripComments\":").Append(Bool(stripComments)).Append(',');
-            sb.Append("\"removeBlankLines\":").Append(Bool(removeBlankLines));
+            sb.Append("\"removeBlankLines\":").Append(Bool(removeBlankLines)).Append(',');
+            sb.Append("\"appendTxt\":").Append(Bool(appendTxt));
             sb.Append('}');
             return sb.ToString();
         }

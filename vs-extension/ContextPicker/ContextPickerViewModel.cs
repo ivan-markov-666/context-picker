@@ -31,6 +31,7 @@ namespace ContextPicker
             CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
             LoadSkeletonExcludes();
             LoadMaxChars();
+            LoadCopyAsTxt();
 
             _recountTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
             _recountTimer.Tick += (s, e) => { _recountTimer.Stop(); _ = RecountSafeAsync(); };
@@ -68,6 +69,13 @@ namespace ContextPicker
         {
             get { return _removeBlankLines; }
             set { _removeBlankLines = value; OnPropertyChanged("RemoveBlankLines"); ScheduleRecount(); }
+        }
+
+        private bool _copyAsTxt;
+        public bool CopyAsTxt
+        {
+            get { return _copyAsTxt; }
+            set { if (_copyAsTxt == value) return; _copyAsTxt = value; OnPropertyChanged("CopyAsTxt"); SaveCopyAsTxt(); }
         }
 
         // --- Live size counter (lines/chars of what Generate would produce) ---
@@ -244,7 +252,7 @@ namespace ContextPicker
             Status = "Copying " + files.Count + " file(s)...";
             string dir = Path.Combine(Path.GetTempPath(), "ContextPicker-files");
             int written = await NodeBridge.CopyFilesAsync(
-                _nodeExe, _scriptPath, dir, files.ToArray(), StripComments, RemoveBlankLines);
+                _nodeExe, _scriptPath, dir, files.ToArray(), StripComments, RemoveBlankLines, CopyAsTxt);
 
             try
             {
@@ -252,7 +260,10 @@ namespace ContextPicker
             }
             catch { }
 
-            string note = (StripComments || RemoveBlankLines) ? " (transforms applied)" : string.Empty;
+            var notes = new List<string>();
+            if (StripComments || RemoveBlankLines) notes.Add("transforms applied");
+            if (CopyAsTxt) notes.Add(".txt added");
+            string note = notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : string.Empty;
             Status = "Copied " + written + " file(s) to a folder" + note + " — drag them into your chat.";
         }
 
@@ -436,6 +447,38 @@ namespace ContextPicker
                 string file = MaxCharsFilePath();
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
                 File.WriteAllText(file, _maxChars.ToString());
+            }
+            catch { }
+        }
+
+        private static string CopyAsTxtFilePath()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ContextPicker");
+            return Path.Combine(dir, "copy-as-txt.txt");
+        }
+
+        private void LoadCopyAsTxt()
+        {
+            try
+            {
+                string file = CopyAsTxtFilePath();
+                if (File.Exists(file))
+                {
+                    _copyAsTxt = File.ReadAllText(file).Trim() == "1";
+                }
+            }
+            catch { }
+        }
+
+        private void SaveCopyAsTxt()
+        {
+            try
+            {
+                string file = CopyAsTxtFilePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, _copyAsTxt ? "1" : "0");
             }
             catch { }
         }

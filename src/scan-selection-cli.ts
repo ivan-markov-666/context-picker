@@ -29,6 +29,8 @@ interface Request {
   stripComments?: boolean;
   removeBlankLines?: boolean;
   respectGitignore?: boolean;
+  /** copyfiles mode only: append .txt to each copied file's name. */
+  appendTxt?: boolean;
   /** skeleton mode only: explicit folder-name excludes (overrides DEFAULT_IGNORE). */
   excludeFolders?: string[];
 }
@@ -101,6 +103,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       includedFiles: req.includedFiles ?? [],
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false,
+      appendTxtExtension: req.appendTxt ?? false,
     });
     process.stdout.write(String(written));
     return;

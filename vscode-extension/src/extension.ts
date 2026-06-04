@@ -373,6 +373,9 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
   }
 
   const { stripComments, removeBlankLines } = readScanConfig();
+  const appendTxtExtension = vscode.workspace
+    .getConfiguration('projectContext')
+    .get<boolean>('copyAsTxt', false);
   const dir = path.join(os.tmpdir(), 'context-picker-files');
   try {
     const written = await copySelectionToDir({
@@ -380,9 +383,13 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
       includedFiles: files,
       stripComments,
       removeBlankLines,
+      appendTxtExtension,
     });
     await vscode.env.openExternal(vscode.Uri.file(dir));
-    const note = stripComments || removeBlankLines ? ' (transforms applied)' : '';
+    const notes: string[] = [];
+    if (stripComments || removeBlankLines) notes.push('transforms applied');
+    if (appendTxtExtension) notes.push('.txt added');
+    const note = notes.length ? ` (${notes.join(', ')})` : '';
     vscode.window.showInformationMessage(
       `Context Picker: copied ${written} file(s) to a folder${note} — drag them into your chat.`
     );

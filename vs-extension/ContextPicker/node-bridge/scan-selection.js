@@ -4412,7 +4412,7 @@ function uniqueFlatName(filePath, used) {
   return candidate;
 }
 async function copySelectionToDir(options) {
-  const { targetDir, includedFiles, stripComments, removeBlankLines } = options;
+  const { targetDir, includedFiles, stripComments, removeBlankLines, appendTxtExtension } = options;
   await fs2.promises.mkdir(targetDir, { recursive: true });
   for (const entry of await fs2.promises.readdir(targetDir)) {
     await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
@@ -4420,7 +4420,11 @@ async function copySelectionToDir(options) {
   const used = /* @__PURE__ */ new Set();
   let written = 0;
   for (const file of includedFiles) {
-    const dest = path2.join(targetDir, uniqueFlatName(file, used));
+    let name = uniqueFlatName(file, used);
+    if (appendTxtExtension) {
+      name += ".txt";
+    }
+    const dest = path2.join(targetDir, name);
     const processed = await processFileForCopy(file, stripComments, removeBlankLines);
     if (processed === null) {
       await fs2.promises.copyFile(file, dest);
@@ -4667,7 +4671,8 @@ async function main(argv = process.argv) {
       targetDir: req.targetDir,
       includedFiles: req.includedFiles ?? [],
       stripComments: req.stripComments ?? false,
-      removeBlankLines: req.removeBlankLines ?? false
+      removeBlankLines: req.removeBlankLines ?? false,
+      appendTxtExtension: req.appendTxt ?? false
     });
     process.stdout.write(String(written));
     return;
