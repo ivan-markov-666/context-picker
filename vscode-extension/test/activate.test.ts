@@ -102,6 +102,7 @@ describe('extension activate() (built bundle)', () => {
     const context = {
       subscriptions: [] as unknown[],
       workspaceState: { get: () => undefined, update: () => Promise.resolve() },
+      globalState: { get: () => undefined, update: () => Promise.resolve() },
     };
 
     assert.doesNotThrow(() => activate(context));

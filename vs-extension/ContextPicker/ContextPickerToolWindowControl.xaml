@@ -27,17 +27,19 @@
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         </WrapPanel>
         <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
-            Header="Copy Skeleton — folders to exclude (ticked = omitted)"
+            Header="Copy Skeleton — folders to exclude (ticked = omitted; nested too)"
             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
             <StackPanel Margin="14,2,0,0">
-                <ItemsControl ItemsSource="{Binding SkeletonExcludes}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExcluded, Mode=TwoWay}" Margin="0,1"
-                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding SkeletonExcludes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExcluded, Mode=TwoWay}" Margin="0,1"
+                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
                 <DockPanel Margin="0,4,0,0">
                     <Button DockPanel.Dock="Right" Content="Add" Command="{Binding AddExcludeCommand}" Margin="4,0,0,0" Padding="6,1"/>
                     <TextBox Text="{Binding NewExcludeFolder, UpdateSourceTrigger=PropertyChanged}">

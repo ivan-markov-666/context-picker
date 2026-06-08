@@ -9,7 +9,7 @@ import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Import from the CLI-free core modules so the bundle never pulls in the
 // `scanner.ts`/`tree.ts` CLI entry points (shebang / `require.main` guard).
 import { scanSelectionToString, copySelectionToDir } from '../../src/scan-core';
-import { buildTree, renderTree, resolveRootName } from '../../src/tree-core';
+import { buildTree, renderTree, resolveRootName, TreeNode } from '../../src/tree-core';
 import { DEFAULT_IGNORE } from '../../src/blacklist';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -219,6 +219,9 @@ export function activate(context: vscode.ExtensionContext): void {
       skeletonHere(uri)
     )
   );
+
+  // Nudge about the "Copy as .txt" option until it is configured.
+  void maybeShowCopyTxtHint(context);
 }
 
 export function deactivate(): void {
@@ -511,14 +514,17 @@ async function configureSkeletonExcludes(): Promise<void> {
   const cfg = vscode.workspace.getConfiguration('projectContext');
   const current = cfg.get<string[]>('skeletonExcludeFolders', [...DEFAULT_IGNORE]);
 
+  // Candidates: the defaults + the current setting + every folder in the project
+  // (at any depth, as a relative path), so nested folders can be picked too.
   const candidates = new Set<string>([...DEFAULT_IGNORE, ...current]);
+  const isIgnored = await buildIgnorePredicate();
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
     try {
-      for (const [name, type] of await vscode.workspace.fs.readDirectory(folder.uri)) {
-        if (type === vscode.FileType.Directory) {
-          candidates.add(name);
-        }
-      }
+      const nodes = await buildTree(folder.uri.fsPath, folder.uri.fsPath, {
+        blacklist: [...DEFAULT_IGNORE],
+        isIgnored,
+      });
+      collectDirRelPaths(nodes, folder.uri.fsPath, candidates);
     } catch {
       // Unreadable workspace root — ignore.
     }
@@ -543,8 +549,59 @@ async function configureSkeletonExcludes(): Promise<void> {
     : vscode.ConfigurationTarget.Global;
   await cfg.update('skeletonExcludeFolders', selected, target);
   vscode.window.showInformationMessage(
-    `Context Picker: ${selected.length} folder name(s) will be omitted from the skeleton.`
+    `Context Picker: ${selected.length} folder(s) will be omitted from the skeleton.`
   );
+}
+
+/** Collects the relative paths of every directory in the tree (recursively). */
+function collectDirRelPaths(nodes: TreeNode[], root: string, into: Set<string>): void {
+  for (const node of nodes) {
+    if (node.isDirectory && node.path) {
+      const rel = path.relative(root, node.path).replace(/\\/g, '/');
+      if (rel) {
+        into.add(rel);
+      }
+      collectDirRelPaths(node.children, root, into);
+    }
+  }
+}
+
+/**
+ * First-run hint: surfaces the "Copy as .txt" option (needed for Microsoft 365
+ * Copilot, which blocks source extensions) on activation until the user turns it
+ * on or dismisses it.
+ */
+async function maybeShowCopyTxtHint(context: vscode.ExtensionContext): Promise<void> {
+  if (!context.globalState) {
+    return; // defensive: never let the nudge break activation
+  }
+  const cfg = vscode.workspace.getConfiguration('projectContext');
+  if (cfg.get<boolean>('copyAsTxt', false)) {
+    return; // already configured -> nothing to nudge
+  }
+  if (context.globalState.get<boolean>('projectContext.copyTxtHintDismissed', false)) {
+    return;
+  }
+  const ENABLE = 'Enable Copy as .txt';
+  const SETTINGS = 'Open setting';
+  const DISMISS = "Don't show again";
+  const choice = await vscode.window.showInformationMessage(
+    'Context Picker: uploading code to Microsoft 365 Copilot? It blocks .ts/.cs/.js files. ' +
+      'Turn on "Copy as .txt" — then "Copy Files to Folder" saves them as e.g. app.ts.txt so they upload.',
+    ENABLE,
+    SETTINGS,
+    DISMISS
+  );
+  if (choice === ENABLE) {
+    await cfg.update('copyAsTxt', true, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(
+      'Context Picker: "Copy as .txt" is on — copied files will end in .txt.'
+    );
+  } else if (choice === SETTINGS) {
+    await vscode.commands.executeCommand('workbench.action.openSettings', 'projectContext.copyAsTxt');
+  } else if (choice === DISMISS) {
+    await context.globalState.update('projectContext.copyTxtHintDismissed', true);
+  }
 }
 
 /** Prompts for the max-characters warning threshold (0 disables it). */

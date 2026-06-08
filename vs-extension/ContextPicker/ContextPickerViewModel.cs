@@ -168,6 +168,7 @@ namespace ContextPicker
             RootNodes.Clear();
             RootNodes.Add(root);
             SubscribeToNodes(root); // so the live counter reacts to ticking
+            RebuildSkeletonExcludes(); // now include this project's folders (any depth)
             ApplyFilter(); // honour any active filter + open the root
             Status = "Ready. Tick files/folders, then Generate.";
             ScheduleRecount();
@@ -213,14 +214,7 @@ namespace ContextPicker
                 return;
             }
             Status = "Building skeleton...";
-            var excludes = new List<string>();
-            foreach (SkeletonExcludeItem item in SkeletonExcludes)
-            {
-                if (item.IsExcluded && !string.IsNullOrWhiteSpace(item.Name))
-                {
-                    excludes.Add(item.Name.Trim());
-                }
-            }
+            var excludes = new List<string>(_persistedExcludes);
             string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore, excludes.ToArray());
             ShowOutput(text);
             Status = "Skeleton opened in editor (excluded " + excludes.Count + " folder name(s)).";
@@ -483,38 +477,105 @@ namespace ContextPicker
             catch { }
         }
 
-        // --- Skeleton excludes (a small, persisted list of folder names) ---
+        // --- Skeleton excludes: defaults + every project folder (any depth), persisted ---
 
         private static readonly string[] DefaultExcludes = { "node_modules", ".git", "bin", "obj", ".vs" };
 
+        // The set of folder names / relative paths to omit from Copy Skeleton (source of truth).
+        private HashSet<string> _persistedExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private void AddExclude()
         {
-            string name = (NewExcludeFolder ?? string.Empty).Trim();
+            string name = (NewExcludeFolder ?? string.Empty).Trim().Replace('\\', '/');
             if (name.Length == 0) return;
-            foreach (SkeletonExcludeItem existing in SkeletonExcludes)
-            {
-                if (string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase))
-                {
-                    existing.IsExcluded = true; // already in the list -> just turn it on
-                    NewExcludeFolder = string.Empty;
-                    return;
-                }
-            }
-            var item = new SkeletonExcludeItem { Name = name, IsExcluded = true };
-            item.PropertyChanged += OnExcludeItemChanged;
-            SkeletonExcludes.Add(item);
+            _persistedExcludes.Add(name);
             NewExcludeFolder = string.Empty;
             SaveSkeletonExcludes();
+            RebuildSkeletonExcludes();
         }
 
         private void OnExcludeItemChanged(object sender, PropertyChangedEventArgs e)
         {
+            var item = sender as SkeletonExcludeItem;
+            if (item == null) return;
+            if (item.IsExcluded) _persistedExcludes.Add(item.Name);
+            else _persistedExcludes.Remove(item.Name);
             SaveSkeletonExcludes();
+        }
+
+        /// <summary>
+        /// Rebuilds the visible exclude list = the defaults + every folder in the
+        /// loaded tree (at any depth, as a relative path) + any persisted custom
+        /// entries. The ticked state comes from the persisted set.
+        /// </summary>
+        private void RebuildSkeletonExcludes()
+        {
+            foreach (SkeletonExcludeItem old in SkeletonExcludes)
+            {
+                old.PropertyChanged -= OnExcludeItemChanged;
+            }
+            SkeletonExcludes.Clear();
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var ordered = new List<string>();
+            foreach (string d in DefaultExcludes)
+            {
+                if (seen.Add(d)) ordered.Add(d);
+            }
+            if (!string.IsNullOrEmpty(_workspaceRoot))
+            {
+                var folders = new List<string>();
+                foreach (FileNode root in RootNodes)
+                {
+                    CollectFolderRelPaths(root, folders);
+                }
+                folders.Sort(StringComparer.OrdinalIgnoreCase);
+                foreach (string f in folders)
+                {
+                    if (seen.Add(f)) ordered.Add(f);
+                }
+            }
+            foreach (string p in _persistedExcludes)
+            {
+                if (seen.Add(p)) ordered.Add(p);
+            }
+
+            foreach (string name in ordered)
+            {
+                var item = new SkeletonExcludeItem { Name = name, IsExcluded = _persistedExcludes.Contains(name) };
+                item.PropertyChanged += OnExcludeItemChanged;
+                SkeletonExcludes.Add(item);
+            }
+        }
+
+        private void CollectFolderRelPaths(FileNode node, List<string> into)
+        {
+            if (node.IsDirectory)
+            {
+                string rel = ToRelative(_workspaceRoot, node.FullPath);
+                if (!string.IsNullOrEmpty(rel)) into.Add(rel);
+            }
+            foreach (FileNode child in node.Children)
+            {
+                CollectFolderRelPaths(child, into);
+            }
+        }
+
+        private static string ToRelative(string root, string full)
+        {
+            if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(full)) return string.Empty;
+            string r = root.TrimEnd('\\', '/');
+            if (full.Length >= r.Length && full.Substring(0, r.Length).Equals(r, StringComparison.OrdinalIgnoreCase))
+            {
+                return full.Substring(r.Length).TrimStart('\\', '/').Replace('\\', '/');
+            }
+            return full.Replace('\\', '/');
         }
 
         private void LoadSkeletonExcludes()
         {
-            var loaded = new List<SkeletonExcludeItem>();
+            _persistedExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool any = false;
             try
             {
                 string file = ExcludesFilePath();
@@ -524,37 +585,32 @@ namespace ContextPicker
                     {
                         string line = raw.Trim();
                         if (line.Length == 0) continue;
-                        bool excluded = true;
-                        string name = line;
+                        any = true;
                         int tab = line.IndexOf('\t');
                         if (tab >= 0)
                         {
-                            excluded = line.Substring(0, tab) != "0";
-                            name = line.Substring(tab + 1);
+                            // legacy "1\tname" / "0\tname" -> keep only the excluded ones
+                            if (line.Substring(0, tab) == "1")
+                            {
+                                string nm = line.Substring(tab + 1).Trim();
+                                if (nm.Length > 0) _persistedExcludes.Add(nm);
+                            }
                         }
-                        if (name.Length > 0)
+                        else
                         {
-                            loaded.Add(new SkeletonExcludeItem { Name = name, IsExcluded = excluded });
+                            _persistedExcludes.Add(line);
                         }
                     }
                 }
             }
             catch { }
 
-            if (loaded.Count == 0)
+            if (!any)
             {
-                foreach (string d in DefaultExcludes)
-                {
-                    loaded.Add(new SkeletonExcludeItem { Name = d, IsExcluded = true });
-                }
+                foreach (string d in DefaultExcludes) _persistedExcludes.Add(d);
             }
 
-            SkeletonExcludes.Clear();
-            foreach (SkeletonExcludeItem item in loaded)
-            {
-                item.PropertyChanged += OnExcludeItemChanged;
-                SkeletonExcludes.Add(item);
-            }
+            RebuildSkeletonExcludes();
         }
 
         private void SaveSkeletonExcludes()
@@ -563,12 +619,7 @@ namespace ContextPicker
             {
                 string file = ExcludesFilePath();
                 Directory.CreateDirectory(Path.GetDirectoryName(file));
-                var lines = new List<string>();
-                foreach (SkeletonExcludeItem item in SkeletonExcludes)
-                {
-                    lines.Add((item.IsExcluded ? "1" : "0") + "\t" + item.Name);
-                }
-                File.WriteAllLines(file, lines);
+                File.WriteAllLines(file, _persistedExcludes);
             }
             catch { }
         }
