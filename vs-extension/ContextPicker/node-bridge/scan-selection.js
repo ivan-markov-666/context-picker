@@ -4595,12 +4595,14 @@ async function createGitignorePredicate(roots, respect) {
     return ALLOW_ALL;
   }
   return (fsPath, isDirectory) => {
+    const np = fsPath.replace(/\\/g, "/").replace(/\/+$/, "");
     for (const { root, ig } of matchers) {
-      if (fsPath === root) {
+      const nr = root.replace(/\\/g, "/").replace(/\/+$/, "");
+      if (np === nr) {
         continue;
       }
-      if (fsPath.startsWith(root + path4.sep)) {
-        const rel = path4.relative(root, fsPath).replace(/\\/g, "/");
+      if (np.startsWith(nr + "/")) {
+        const rel = np.slice(nr.length + 1);
         if (!rel) {
           continue;
         }

@@ -44,12 +44,16 @@ export async function createGitignorePredicate(
   }
 
   return (fsPath: string, isDirectory: boolean): boolean => {
+    // Normalise both sides to forward slashes so the comparison is robust to
+    // mixed separators (e.g. a root passed as "C:/x" while entries are "C:\x\y").
+    const np = fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
     for (const { root, ig } of matchers) {
-      if (fsPath === root) {
+      const nr = root.replace(/\\/g, '/').replace(/\/+$/, '');
+      if (np === nr) {
         continue;
       }
-      if (fsPath.startsWith(root + path.sep)) {
-        const rel = path.relative(root, fsPath).replace(/\\/g, '/');
+      if (np.startsWith(nr + '/')) {
+        const rel = np.slice(nr.length + 1);
         if (!rel) {
           continue;
         }
