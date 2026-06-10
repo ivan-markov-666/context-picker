@@ -581,27 +581,44 @@ async function configureSkeletonExcludes(): Promise<void> {
 
   const items: vscode.QuickPickItem[] = [...candidates]
     .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({ label: name, picked: current.includes(name) }));
+    .map((name) => ({ label: name }));
 
-  const picked = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    title: includeNested
-      ? 'Copy Skeleton — folders to exclude (root + nested)'
-      : 'Copy Skeleton — folders to exclude (root only — enable nested in settings)',
-    placeHolder: 'Tick the folders to OMIT from the skeleton (Esc to cancel)',
-  });
-  if (!picked) {
-    return; // cancelled
-  }
-
-  const selected = picked.map((p) => p.label);
   const target = vscode.workspace.workspaceFolders?.length
     ? vscode.ConfigurationTarget.Workspace
     : vscode.ConfigurationTarget.Global;
-  await cfg.update('skeletonExcludeFolders', selected, target);
-  vscode.window.showInformationMessage(
-    `Context Picker: ${selected.length} folder(s) will be omitted from the skeleton.`
-  );
+
+  // Use the live QuickPick API so every tick/untick is saved immediately — the
+  // choice then survives even if the picker is dismissed (Esc / click away)
+  // without pressing OK.
+  const qp = vscode.window.createQuickPick();
+  qp.title = includeNested
+    ? 'Copy Skeleton — folders to exclude (root + nested)'
+    : 'Copy Skeleton — folders to exclude (root only — enable nested in settings)';
+  qp.placeholder = 'Tick folders to OMIT — saved automatically (Esc to close)';
+  qp.canSelectMany = true;
+  qp.ignoreFocusOut = true;
+  qp.items = items;
+  // Pre-tick the current excludes BEFORE wiring the handler, so this initial
+  // state does not trigger a redundant save.
+  qp.selectedItems = items.filter((i) => current.includes(i.label));
+
+  qp.onDidChangeSelection((selection) => {
+    void cfg.update(
+      'skeletonExcludeFolders',
+      selection.map((s) => s.label),
+      target
+    );
+  });
+  qp.onDidAccept(() => qp.hide());
+  qp.onDidHide(() => {
+    const count = qp.selectedItems.length;
+    qp.dispose();
+    vscode.window.setStatusBarMessage(
+      `Context Picker: ${count} folder(s) excluded from the skeleton.`,
+      4000
+    );
+  });
+  qp.show();
 }
 
 /** Collects the relative paths of every directory in the tree (recursively). */
