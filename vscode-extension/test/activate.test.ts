@@ -36,6 +36,15 @@ function makeFakeVscode(): any {
       showInformationMessage() {},
       showWarningMessage() {},
       showErrorMessage() {},
+      createStatusBarItem: () => ({
+        text: '',
+        tooltip: '',
+        command: '',
+        backgroundColor: undefined,
+        show() {},
+        hide() {},
+        dispose() {},
+      }),
       withProgress: (_opts: unknown, task: (p: unknown, t: unknown) => unknown) =>
         Promise.resolve(
           task(
@@ -54,12 +63,17 @@ function makeFakeVscode(): any {
       workspaceFolders: undefined,
       getConfiguration: () => ({ get: (_k: string, d: unknown) => d, update: () => Promise.resolve() }),
       onDidChangeConfiguration: () => ({ dispose() {} }),
+      onDidChangeWorkspaceFolders: () => ({ dispose() {} }),
     },
     env: { clipboard: { writeText: () => Promise.resolve() } },
     TreeItemCheckboxState: { Unchecked: 0, Checked: 1 },
     TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
     ProgressLocation: { Notification: 15 },
     ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+    StatusBarAlignment: { Left: 1, Right: 2 },
+    ThemeColor: class {
+      constructor(public id: string) {}
+    },
   };
 }
 

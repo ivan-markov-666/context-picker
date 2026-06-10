@@ -96,6 +96,31 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   void updateCount();
 
+  // Red status-bar nudge: shown while "Copy as .txt" is off (Microsoft 365
+  // Copilot blocks code extensions). Clicking it turns the option on.
+  const txtStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
+  txtStatus.command = 'projectContext.enableCopyAsTxt';
+  context.subscriptions.push(txtStatus);
+  function refreshTxtStatus(): void {
+    const on = vscode.workspace.getConfiguration('projectContext').get<boolean>('copyAsTxt', false);
+    const dismissed =
+      context.globalState?.get<boolean>('projectContext.copyTxtHintDismissed', false) ?? false;
+    const hasFolder = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+    if (on || dismissed || !hasFolder) {
+      txtStatus.hide();
+      return;
+    }
+    txtStatus.text = '$(warning) Copy as .txt: OFF';
+    txtStatus.tooltip =
+      'Microsoft 365 Copilot blocks code files (.ts/.cs/...). Click to enable "Copy as .txt" so Copy Files saves e.g. app.ts as app.ts.txt.';
+    txtStatus.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+    txtStatus.show();
+  }
+  refreshTxtStatus();
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => refreshTxtStatus())
+  );
+
   // Re-render the tree on the next tick: VS Code needs to finish applying the
   // user's checkbox change before we recompute ancestor "partial" badges.
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -140,6 +165,9 @@ export function activate(context: vscode.ExtensionContext): void {
       ) {
         void updateCount();
       }
+      if (event.affectsConfiguration('projectContext.copyAsTxt')) {
+        refreshTxtStatus();
+      }
     },
     undefined,
     context.subscriptions
@@ -149,6 +177,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('projectContext.refresh', () => {
       scheduleRefresh();
       scheduleCount();
+    }),
+
+    vscode.commands.registerCommand('projectContext.enableCopyAsTxt', async () => {
+      await vscode.workspace
+        .getConfiguration('projectContext')
+        .update('copyAsTxt', true, vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage(
+        'Context Picker: "Copy as .txt" enabled — copied files will end in .txt.'
+      );
     }),
 
     vscode.commands.registerCommand('projectContext.enableStripComments', () =>
@@ -221,7 +258,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Nudge about the "Copy as .txt" option until it is configured.
-  void maybeShowCopyTxtHint(context);
+  void maybeShowCopyTxtHint(context, refreshTxtStatus);
 }
 
 export function deactivate(): void {
@@ -571,7 +608,10 @@ function collectDirRelPaths(nodes: TreeNode[], root: string, into: Set<string>):
  * Copilot, which blocks source extensions) on activation until the user turns it
  * on or dismisses it.
  */
-async function maybeShowCopyTxtHint(context: vscode.ExtensionContext): Promise<void> {
+async function maybeShowCopyTxtHint(
+  context: vscode.ExtensionContext,
+  refresh: () => void
+): Promise<void> {
   if (!context.globalState) {
     return; // defensive: never let the nudge break activation
   }
@@ -601,6 +641,7 @@ async function maybeShowCopyTxtHint(context: vscode.ExtensionContext): Promise<v
     await vscode.commands.executeCommand('workbench.action.openSettings', 'projectContext.copyAsTxt');
   } else if (choice === DISMISS) {
     await context.globalState.update('projectContext.copyTxtHintDismissed', true);
+    refresh(); // hide the red status-bar nudge too
   }
 }
 

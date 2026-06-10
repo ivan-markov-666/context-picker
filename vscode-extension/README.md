@@ -3,8 +3,9 @@
 **Pick files and folders with checkboxes, then copy their code — or a project skeleton — ready to paste into an LLM.**
 
 Context Picker adds a sidebar panel with a checkbox tree of your workspace. Tick
-what matters, and generate a single, well-formatted block of file contents (or
+what matters and generate a single, well-formatted block of file contents (or
 just the directory tree) to paste into any AI assistant or large language model.
+It can even collect the files into a folder for drag-and-drop upload.
 
 ## Features
 
@@ -14,34 +15,42 @@ just the directory tree) to paste into any AI assistant or large language model.
 - **Generate Contents** — outputs the path + content of every selected file in
   one block, opened in a new editor tab (or copied to the clipboard / saved to a
   file).
+- **Select Files by Path** 🔍 — paste a list of paths (e.g. the files an LLM asked
+  for) and every matching file is ticked automatically.
+- **Copy Files to Folder** 🗎 — copies the selected files into one folder and opens
+  it, so you can drag them straight into a chat. Cleaned on each run.
+  - **Copy as .txt** — optionally renames copies to `app.ts.txt`, so uploaders
+    that block source extensions (e.g. **Microsoft 365 Copilot**) accept them
+    while keeping the language visible in the name.
 - **Copy Project Skeleton** — outputs just the directory tree, with your project
   name as the root.
-- **Optional comment stripping** — one-click toggle to remove comments from
-  supported languages, so the paste is smaller and focused on code.
-- **Remove blank lines** — one-click toggle to drop empty lines from the output,
-  shrinking the context further.
-- **Respect `.gitignore`** — files and folders matched by your `.gitignore` are
-  hidden by default (in the tree, generation and skeleton); a toggle reveals them.
-- **Skip secrets** — `.env` file contents are excluded by default.
-- **A footer** shows how many files are selected and the approximate size, so you
-  know how big the paste will be before you generate.
-- **Progress + Cancel** — a progress bar with a percentage and a cancel button
-  for large selections.
-- **Explorer quick actions** — right-click any file or folder to *Copy Contents
+  - **Configure Skeleton Excludes** ⚙ — tick which folders to omit from the
+    skeleton (any depth); the choice is saved per-workspace.
+- **Live size counter** — the footer shows how many files are selected and the
+  exact **lines** and **characters** the output will be (honouring the transforms
+  below), so you know if it fits your LLM's context. Set **Max Characters** to get
+  an over-limit warning.
+- **Strip comments** / **Remove blank lines** — one-click toggles to shrink the
+  output; the counter and the copied files reflect them.
+- **Respect `.gitignore`** — files/folders matched by `.gitignore` are hidden by
+  default (tree, generation and skeleton); a toggle reveals them.
+- **Build/IDE folders hidden** — `node_modules`, `.git`, `bin`, `obj`, `.vs` are
+  skipped automatically.
+- **Skip secrets** — `.env` contents are excluded by default.
+- **Explorer quick actions** — right-click any file/folder to *Copy Contents
   (with subfolders)* or *Copy Skeleton From Here* without opening the panel.
 - Your selection is **remembered** between sessions.
-
-`node_modules` and `.git` are ignored automatically.
 
 ## How to use
 
 1. Click the **Context Picker** icon in the Activity Bar.
-2. Tick the files and folders you want.
-3. Click **Generate Contents** in the panel's title bar.
-4. Paste the result into your LLM of choice.
+2. Tick files/folders — or click **Select Files by Path** and paste a list.
+3. Watch the footer for the size (lines / chars).
+4. **Generate Contents** to get the text, or **Copy Files to Folder** to drag the
+   actual files into a chat.
 
-Prefer a quick one-off? Right-click a file or folder in the Explorer and choose
-**Copy Contents (with subfolders)**.
+> Uploading to **Microsoft 365 Copilot**? Turn on **Copy as .txt** (a red status-bar
+> reminder appears until you do) so the copied files upload as `.txt`.
 
 ## Settings
 
@@ -52,15 +61,17 @@ Prefer a quick one-off? Right-click a file or folder in the Explorer and choose
 | `projectContext.removeBlankLines` | `false` | Drop blank/whitespace-only lines from generated content |
 | `projectContext.respectGitignore` | `true` | Hide files/folders matched by the workspace `.gitignore` |
 | `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
+| `projectContext.maxChars` | `0` | Warn in the footer when the output exceeds this many characters (0 = off) |
+| `projectContext.skeletonExcludeFolders` | `node_modules, .git, bin, obj, .vs` | Folders omitted from Copy Skeleton (edit via the gear button) |
+| `projectContext.copyAsTxt` | `false` | Append `.txt` to files in *Copy Files to Folder* (for Microsoft 365 Copilot) |
 
-Comment stripping, blank-line removal and `.gitignore` filtering each have a
-one-click toggle in the panel's title bar; the footer shows which transforms are
-currently active.
+Most actions also have a one-click button in the panel's title bar (some under the
+`…` overflow menu); the footer shows which transforms are currently active.
 
 ## Privacy
 
 Context Picker runs entirely locally. It reads the files you select and produces
-text in your editor, clipboard, or a file you choose. It does not send anything
+text in your editor, clipboard, or a folder you choose. It does not send anything
 anywhere.
 
 ## License
