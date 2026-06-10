@@ -13,9 +13,13 @@
     <None Remove="ContextPickerPackage.vsct" />
     <None Remove="ContextPickerToolWindowControl.xaml" />
     <None Remove="node-bridge\scan-selection.js" />
+    <None Remove="icon.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="node-bridge\scan-selection.js" />
+    <Content Include="icon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />
