@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="ContextPicker.91559fa1-3c18-4114-9230-5bbcd99eac47" Version="1.11" Language="en-US" Publisher="ContextPicker" />
+    <Identity Id="ContextPicker.91559fa1-3c18-4114-9230-5bbcd99eac47" Version="1.12" Language="en-US" Publisher="ContextPicker" />
     <DisplayName>ContextPicker</DisplayName>
     <Description>Pick files/folders from the open solution with checkboxes and copy their contents — or a project skeleton — for pasting into an LLM. Filter by pasting file paths, see a live line/character counter with an optional max, and copy the selected files into a folder (optionally renamed to .txt for uploaders like Microsoft 365 Copilot). Configure which folders to omit from the skeleton. Toggles for stripping comments, removing blank lines and respecting .gitignore. Requires Node.js on PATH.</Description>
     <Icon>icon.png</Icon>

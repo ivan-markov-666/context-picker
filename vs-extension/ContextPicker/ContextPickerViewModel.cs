@@ -29,6 +29,7 @@ namespace ContextPicker
             CheckShownCommand = new RelayCommand(CheckShown);
             AddExcludeCommand = new RelayCommand(AddExclude);
             CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
+            LoadShowNestedExcludes();
             LoadSkeletonExcludes();
             LoadMaxChars();
             LoadCopyAsTxt();
@@ -76,6 +77,22 @@ namespace ContextPicker
         {
             get { return _copyAsTxt; }
             set { if (_copyAsTxt == value) return; _copyAsTxt = value; OnPropertyChanged("CopyAsTxt"); SaveCopyAsTxt(); }
+        }
+
+        // Configure Skeleton Excludes: show only root folders (false, default) or
+        // also nested sub-folders (true).
+        private bool _showNestedExcludes;
+        public bool ShowNestedExcludes
+        {
+            get { return _showNestedExcludes; }
+            set
+            {
+                if (_showNestedExcludes == value) return;
+                _showNestedExcludes = value;
+                OnPropertyChanged("ShowNestedExcludes");
+                SaveShowNestedExcludes();
+                RebuildSkeletonExcludes();
+            }
         }
 
         // --- Live size counter (lines/chars of what Generate would produce) ---
@@ -477,6 +494,38 @@ namespace ContextPicker
             catch { }
         }
 
+        private static string ShowNestedExcludesFilePath()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ContextPicker");
+            return Path.Combine(dir, "show-nested-excludes.txt");
+        }
+
+        private void LoadShowNestedExcludes()
+        {
+            try
+            {
+                string file = ShowNestedExcludesFilePath();
+                if (File.Exists(file))
+                {
+                    _showNestedExcludes = File.ReadAllText(file).Trim() == "1";
+                }
+            }
+            catch { }
+        }
+
+        private void SaveShowNestedExcludes()
+        {
+            try
+            {
+                string file = ShowNestedExcludesFilePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                File.WriteAllText(file, _showNestedExcludes ? "1" : "0");
+            }
+            catch { }
+        }
+
         // --- Skeleton excludes: defaults + every project folder (any depth), persisted ---
 
         private static readonly string[] DefaultExcludes = { "node_modules", ".git", "bin", "obj", ".vs" };
@@ -525,9 +574,27 @@ namespace ContextPicker
             if (!string.IsNullOrEmpty(_workspaceRoot))
             {
                 var folders = new List<string>();
-                foreach (FileNode root in RootNodes)
+                if (_showNestedExcludes)
                 {
-                    CollectFolderRelPaths(root, folders);
+                    foreach (FileNode root in RootNodes)
+                    {
+                        CollectFolderRelPaths(root, folders);
+                    }
+                }
+                else
+                {
+                    // root-only: just the top-level folders (their name == relative path)
+                    foreach (FileNode root in RootNodes)
+                    {
+                        foreach (FileNode child in root.Children)
+                        {
+                            if (child.IsDirectory)
+                            {
+                                string rel = ToRelative(_workspaceRoot, child.FullPath);
+                                if (!string.IsNullOrEmpty(rel)) folders.Add(rel);
+                            }
+                        }
+                    }
                 }
                 folders.Sort(StringComparer.OrdinalIgnoreCase);
                 foreach (string f in folders)

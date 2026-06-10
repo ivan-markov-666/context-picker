@@ -27,9 +27,12 @@
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         </WrapPanel>
         <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
-            Header="Copy Skeleton — folders to exclude (ticked = omitted; nested too)"
+            Header="Copy Skeleton — folders to exclude (ticked = omitted)"
             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
             <StackPanel Margin="14,2,0,0">
+                <CheckBox Content="Show sub-folders" IsChecked="{Binding ShowNestedExcludes}" Margin="0,0,0,4"
+                    ToolTip="Off = only top-level folders. On = also list nested sub-folders."
+                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                 <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding SkeletonExcludes}">
                         <ItemsControl.ItemTemplate>

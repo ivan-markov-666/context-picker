@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -290,6 +290,11 @@
           "type": "boolean",
           "default": false,
           "description": "When using \"Copy Files to Folder\", append .txt to each file (e.g. app.ts -> app.ts.txt) so uploaders that block source extensions (e.g. Microsoft 365 Copilot) accept them."
+        },
+        "projectContext.skeletonExcludesIncludeNested": {
+          "type": "boolean",
+          "default": false,
+          "description": "In \"Configure Skeleton Excludes\", also list nested sub-folders (as relative paths). Off = only root-level folders (the simpler list)."
         }
       }
     }

@@ -553,6 +553,9 @@ async function configureSkeletonExcludes(): Promise<void> {
 
   // Candidates: the defaults + the current setting + every folder in the project
   // (at any depth, as a relative path), so nested folders can be picked too.
+  // Root-only by default (the original behaviour); when the setting is on, also
+  // list every nested folder (as a relative path) so they can be picked too.
+  const includeNested = cfg.get<boolean>('skeletonExcludesIncludeNested', false);
   const candidates = new Set<string>([...DEFAULT_IGNORE, ...current]);
   const isIgnored = await buildIgnorePredicate();
   for (const folder of vscode.workspace.workspaceFolders ?? []) {
@@ -560,8 +563,17 @@ async function configureSkeletonExcludes(): Promise<void> {
       const nodes = await buildTree(folder.uri.fsPath, folder.uri.fsPath, {
         blacklist: [...DEFAULT_IGNORE],
         isIgnored,
+        ...(includeNested ? {} : { maxDepth: 1 }),
       });
-      collectDirRelPaths(nodes, folder.uri.fsPath, candidates);
+      if (includeNested) {
+        collectDirRelPaths(nodes, folder.uri.fsPath, candidates);
+      } else {
+        for (const node of nodes) {
+          if (node.isDirectory) {
+            candidates.add(node.name);
+          }
+        }
+      }
     } catch {
       // Unreadable workspace root — ignore.
     }
@@ -573,7 +585,9 @@ async function configureSkeletonExcludes(): Promise<void> {
 
   const picked = await vscode.window.showQuickPick(items, {
     canPickMany: true,
-    title: 'Copy Skeleton — folders to exclude',
+    title: includeNested
+      ? 'Copy Skeleton — folders to exclude (root + nested)'
+      : 'Copy Skeleton — folders to exclude (root only — enable nested in settings)',
     placeHolder: 'Tick the folders to OMIT from the skeleton (Esc to cancel)',
   });
   if (!picked) {
