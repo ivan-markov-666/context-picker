@@ -6,6 +6,13 @@ It reuses the TypeScript core (comment stripping, blank-line removal, gitignore
 handling) through a small **Node bridge** instead of re-implementing that logic
 in C#.
 
+> [!IMPORTANT]
+> 🔴 <span style="color:#e51400"><strong>Using Microsoft 365 Copilot? Tick “Copy as .txt” first.</strong></span>
+> Copilot 365 **blocks code files** (`.ts`, `.cs`, `.js`, …). Tick the **Copy as .txt**
+> checkbox in the panel, then **Copy Files** writes your files as e.g. `app.cs.txt`,
+> which Copilot accepts (the original extension stays in the name so the AI still
+> detects the language).
+
 ## Layout
 
 ```

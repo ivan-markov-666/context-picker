@@ -2,6 +2,14 @@
 
 **Pick files and folders with checkboxes, then copy their code — or a project skeleton — ready to paste into an LLM.**
 
+> [!IMPORTANT]
+> 🔴 <span style="color:#e51400"><strong>Using Microsoft 365 Copilot? Turn on “Copy as .txt” first.</strong></span>
+> Copilot 365 **blocks code files** (`.ts`, `.cs`, `.js`, …), so uploads fail. Enable
+> **Settings → `Context Picker: Copy as .txt`** — a red **“Copy as .txt: OFF”** badge
+> stays in the status bar until you do. Then **Copy Files to Folder** saves your files
+> as e.g. `app.ts.txt`, which Copilot accepts (the original extension stays in the name,
+> so the AI still detects the language).
+
 Context Picker adds a sidebar panel with a checkbox tree of your workspace. Tick
 what matters and generate a single, well-formatted block of file contents (or
 just the directory tree) to paste into any AI assistant or large language model.
