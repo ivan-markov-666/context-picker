@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import { ProjectTreeProvider, FsNode } from './ProjectTreeProvider';
 import { SelectionModel } from './SelectionModel';
 import { collectSelectedFiles, collectAllFiles } from './collect';
@@ -465,7 +466,7 @@ async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
   }
 
   const { stripComments, removeBlankLines } = readScanConfig();
-  const dir = path.join(os.homedir(), 'Desktop', 'ContextPicker');
+  const dir = path.join(resolveDesktop(), 'ContextPicker');
   try {
     const written = await copySelectionToDir({
       targetDir: dir,
@@ -483,6 +484,26 @@ async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
   } catch (err) {
     vscode.window.showErrorMessage(`Context Picker: could not copy files — ${String(err)}`);
   }
+}
+
+/** Resolves the user's Desktop, preferring a OneDrive-redirected one if present. */
+function resolveDesktop(): string {
+  const candidates: string[] = [];
+  const oneDrive = process.env.OneDrive || process.env.OneDriveConsumer || process.env.OneDriveCommercial;
+  if (oneDrive) {
+    candidates.push(path.join(oneDrive, 'Desktop'));
+  }
+  candidates.push(path.join(os.homedir(), 'Desktop'));
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return candidates[candidates.length - 1];
 }
 
 /**
