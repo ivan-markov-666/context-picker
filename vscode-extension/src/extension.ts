@@ -228,6 +228,10 @@ export function activate(context: vscode.ExtensionContext): void {
       copyFilesToFolder(selection)
     ),
 
+    vscode.commands.registerCommand('projectContext.copyFilesForOneDrive', () =>
+      copyFilesForOneDrive(selection)
+    ),
+
     vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton()),
 
     vscode.commands.registerCommand('projectContext.configureSkeletonExcludes', () =>
@@ -432,6 +436,49 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
     const note = notes.length ? ` (${notes.join(', ')})` : '';
     vscode.window.showInformationMessage(
       `Context Picker: copied ${written} file(s) to a folder${note} — drag them into your chat.`
+    );
+  } catch (err) {
+    vscode.window.showErrorMessage(`Context Picker: could not copy files — ${String(err)}`);
+  }
+}
+
+/**
+ * Copies the selected files to a folder on the Desktop, renaming each so its
+ * relative path is encoded in the (flat) name and appending .txt — e.g.
+ * src/lib/app.ts -> src__lib__app.ts.txt. Built for uploading to OneDrive, which
+ * shows everything flat: the original folder path is preserved in the name.
+ */
+async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders || folders.length === 0) {
+    vscode.window.showWarningMessage('Context Picker: open a folder first.');
+    return;
+  }
+  const isIgnored = await buildIgnorePredicate();
+  const files: string[] = [];
+  for (const folder of folders) {
+    await collectSelectedFiles(folder.uri.fsPath, selection, files, isIgnored);
+  }
+  if (files.length === 0) {
+    vscode.window.showInformationMessage('Context Picker: no files selected yet.');
+    return;
+  }
+
+  const { stripComments, removeBlankLines } = readScanConfig();
+  const dir = path.join(os.homedir(), 'Desktop', 'ContextPicker');
+  try {
+    const written = await copySelectionToDir({
+      targetDir: dir,
+      includedFiles: files,
+      stripComments,
+      removeBlankLines,
+      appendTxtExtension: true,
+      rootDir: folders[0].uri.fsPath,
+      pathInName: true,
+    });
+    await vscode.env.openExternal(vscode.Uri.file(dir));
+    vscode.window.showInformationMessage(
+      `Context Picker: copied ${written} file(s) to "${dir}" — path-named .txt, ready to upload to OneDrive.`
     );
   } catch (err) {
     vscode.window.showErrorMessage(`Context Picker: could not copy files — ${String(err)}`);

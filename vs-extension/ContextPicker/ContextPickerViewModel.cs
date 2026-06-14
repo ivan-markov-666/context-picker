@@ -29,6 +29,7 @@ namespace ContextPicker
             CheckShownCommand = new RelayCommand(CheckShown);
             AddExcludeCommand = new RelayCommand(AddExclude);
             CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
+            CopyToDesktopCommand = new RelayCommand(() => RunSafe(CopyToDesktopAsync));
             LoadShowNestedExcludes();
             LoadSkeletonExcludes();
             LoadMaxChars();
@@ -47,6 +48,7 @@ namespace ContextPicker
         public ICommand CheckShownCommand { get; private set; }
         public ICommand AddExcludeCommand { get; private set; }
         public ICommand CopyFilesCommand { get; private set; }
+        public ICommand CopyToDesktopCommand { get; private set; }
 
         /// <summary>Folders the user can omit from Copy Skeleton (ticked = omitted).</summary>
         public ObservableCollection<SkeletonExcludeItem> SkeletonExcludes { get; } = new ObservableCollection<SkeletonExcludeItem>();
@@ -276,6 +278,46 @@ namespace ContextPicker
             if (CopyAsTxt) notes.Add(".txt added");
             string note = notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : string.Empty;
             Status = "Copied " + written + " file(s) to a folder" + note + " — drag them into your chat.";
+        }
+
+        /// <summary>
+        /// Copies the selected files to a folder on the Desktop, encoding each file's
+        /// relative path into its (flat) name and appending .txt — e.g.
+        /// src/lib/app.cs -> src__lib__app.cs.txt. Built for uploading to OneDrive,
+        /// which shows everything flat: the folder path is preserved in the name.
+        /// </summary>
+        private async Task CopyToDesktopAsync()
+        {
+            if (RootNodes.Count == 0)
+            {
+                Status = "Nothing loaded. Click Refresh.";
+                return;
+            }
+            var files = new List<string>();
+            foreach (FileNode root in RootNodes)
+            {
+                root.CollectCheckedFiles(files);
+            }
+            if (files.Count == 0)
+            {
+                Status = "No files selected.";
+                return;
+            }
+
+            Status = "Copying " + files.Count + " file(s) to Desktop...";
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            string dir = Path.Combine(desktop, "ContextPicker");
+            int written = await NodeBridge.CopyFilesAsync(
+                _nodeExe, _scriptPath, dir, files.ToArray(),
+                StripComments, RemoveBlankLines, true, _workspaceRoot, true, "__");
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
+            }
+            catch { }
+
+            Status = "Copied " + written + " file(s) to Desktop\\ContextPicker — path-named .txt, ready for OneDrive.";
         }
 
         /// <summary>Filters the tree to the paths pasted in the search box.</summary>

@@ -53,9 +53,16 @@ namespace ContextPicker
         /// Copies the given files into targetDir (cleaned first), applying comment /
         /// blank-line stripping to text files when requested. Returns the count written.
         /// </summary>
-        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt)
+        public static Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt)
+            => CopyFilesAsync(nodeExe, scriptPath, targetDir, files, stripComments, removeBlankLines, appendTxt, null, false, null);
+
+        /// <summary>
+        /// As above, but when pathInName is true each file's relative path (vs rootDir)
+        /// is encoded into its flat name using the given separator (default "__").
+        /// </summary>
+        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt, string rootDir, bool pathInName, string separator)
         {
-            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines, appendTxt)).ConfigureAwait(false);
+            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines, appendTxt, rootDir, pathInName, separator)).ConfigureAwait(false);
             int n;
             int.TryParse(outp.Trim(), out n);
             return n;
@@ -143,11 +150,15 @@ namespace ContextPicker
             return sb.ToString();
         }
 
-        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt)
+        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool appendTxt, string rootDir, bool pathInName, string separator)
         {
             var sb = new StringBuilder();
             sb.Append("{\"mode\":\"copyfiles\",");
             sb.Append("\"targetDir\":").Append(JsonString(targetDir)).Append(',');
+            if (rootDir != null)
+            {
+                sb.Append("\"rootDir\":").Append(JsonString(rootDir)).Append(',');
+            }
             sb.Append("\"includedFiles\":[");
             if (files != null)
             {
@@ -160,7 +171,12 @@ namespace ContextPicker
             sb.Append("],");
             sb.Append("\"stripComments\":").Append(Bool(stripComments)).Append(',');
             sb.Append("\"removeBlankLines\":").Append(Bool(removeBlankLines)).Append(',');
-            sb.Append("\"appendTxt\":").Append(Bool(appendTxt));
+            sb.Append("\"appendTxt\":").Append(Bool(appendTxt)).Append(',');
+            sb.Append("\"pathInName\":").Append(Bool(pathInName));
+            if (separator != null)
+            {
+                sb.Append(",\"separator\":").Append(JsonString(separator));
+            }
             sb.Append('}');
             return sb.ToString();
         }

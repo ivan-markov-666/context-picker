@@ -12,6 +12,8 @@
             <Button Content="Generate" Command="{Binding GenerateCommand}" Margin="2" Padding="8,2"/>
             <Button Content="Copy Files" Command="{Binding CopyFilesCommand}" Margin="2" Padding="8,2"
                 ToolTip="Copy selected files into one folder and open it (drag them into your chat)."/>
+            <Button Content="For OneDrive" Command="{Binding CopyToDesktopCommand}" Margin="2" Padding="8,2"
+                ToolTip="Copy selected files to Desktop\ContextPicker, renamed with their relative path + .txt (e.g. src__lib__app.cs.txt), for uploading to OneDrive."/>
             <Button Content="Copy Skeleton" Command="{Binding SkeletonCommand}" Margin="2" Padding="8,2"/>
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="2" Padding="8,2"/>
         </WrapPanel>

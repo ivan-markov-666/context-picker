@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -66,6 +66,12 @@
         "title": "Copy Files to Folder",
         "category": "Context Picker",
         "icon": "$(files)"
+      },
+      {
+        "command": "projectContext.copyFilesForOneDrive",
+        "title": "Copy Files for OneDrive (to Desktop)",
+        "category": "Context Picker",
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "projectContext.copySkeleton",
@@ -226,6 +232,11 @@
           "command": "projectContext.copyFilesToFolder",
           "when": "view == projectContext.tree",
           "group": "navigation@10"
+        },
+        {
+          "command": "projectContext.copyFilesForOneDrive",
+          "when": "view == projectContext.tree",
+          "group": "navigation@11"
         }
       ],
       "explorer/context": [

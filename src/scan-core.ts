@@ -112,6 +112,16 @@ export interface CopyFilesOptions {
    * uploads while keeping the original extension visible in the name.
    */
   appendTxtExtension?: boolean;
+  /** Base dir for relative paths when {@link pathInName} is set. */
+  rootDir?: string;
+  /**
+   * Encode each file's relative path into its (flat) name, with separators
+   * replaced by {@link pathSeparator}. Lets a flat upload (e.g. OneDrive) keep
+   * the original folder structure in the file name. Requires {@link rootDir}.
+   */
+  pathInName?: boolean;
+  /** Separator that replaces path separators when {@link pathInName} is set (default "__"). */
+  pathSeparator?: string;
 }
 
 /**
@@ -120,7 +130,17 @@ export interface CopyFilesOptions {
  * and `.env` files are copied verbatim. Returns the number of files written.
  */
 export async function copySelectionToDir(options: CopyFilesOptions): Promise<number> {
-  const { targetDir, includedFiles, stripComments, removeBlankLines, appendTxtExtension } = options;
+  const {
+    targetDir,
+    includedFiles,
+    stripComments,
+    removeBlankLines,
+    appendTxtExtension,
+    rootDir,
+    pathInName,
+    pathSeparator,
+  } = options;
+  const sep = pathSeparator || '__';
 
   await fs.promises.mkdir(targetDir, { recursive: true });
   // Clear the contents but keep the folder itself (it may be open in a file manager).
@@ -131,7 +151,22 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
   const used = new Set<string>();
   let written = 0;
   for (const file of includedFiles) {
-    let name = uniqueFlatName(file, used);
+    let name: string;
+    if (pathInName && rootDir) {
+      // Flatten the relative path into the name (e.g. src/lib/app.ts -> src__lib__app.ts).
+      const rel = path.relative(rootDir, file).replace(/\\/g, '/');
+      name = rel.split('/').join(sep);
+      let candidate = name;
+      let i = 2;
+      while (used.has(candidate.toLowerCase())) {
+        candidate = `${name}${sep}${i}`;
+        i += 1;
+      }
+      used.add(candidate.toLowerCase());
+      name = candidate;
+    } else {
+      name = uniqueFlatName(file, used);
+    }
     if (appendTxtExtension) {
       name += '.txt';
     }

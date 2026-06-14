@@ -4412,7 +4412,17 @@ function uniqueFlatName(filePath, used) {
   return candidate;
 }
 async function copySelectionToDir(options) {
-  const { targetDir, includedFiles, stripComments, removeBlankLines, appendTxtExtension } = options;
+  const {
+    targetDir,
+    includedFiles,
+    stripComments,
+    removeBlankLines,
+    appendTxtExtension,
+    rootDir,
+    pathInName,
+    pathSeparator
+  } = options;
+  const sep = pathSeparator || "__";
   await fs2.promises.mkdir(targetDir, { recursive: true });
   for (const entry of await fs2.promises.readdir(targetDir)) {
     await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
@@ -4420,7 +4430,21 @@ async function copySelectionToDir(options) {
   const used = /* @__PURE__ */ new Set();
   let written = 0;
   for (const file of includedFiles) {
-    let name = uniqueFlatName(file, used);
+    let name;
+    if (pathInName && rootDir) {
+      const rel = path2.relative(rootDir, file).replace(/\\/g, "/");
+      name = rel.split("/").join(sep);
+      let candidate = name;
+      let i = 2;
+      while (used.has(candidate.toLowerCase())) {
+        candidate = `${name}${sep}${i}`;
+        i += 1;
+      }
+      used.add(candidate.toLowerCase());
+      name = candidate;
+    } else {
+      name = uniqueFlatName(file, used);
+    }
     if (appendTxtExtension) {
       name += ".txt";
     }
@@ -4674,7 +4698,10 @@ async function main(argv = process.argv) {
       includedFiles: req.includedFiles ?? [],
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false,
-      appendTxtExtension: req.appendTxt ?? false
+      appendTxtExtension: req.appendTxt ?? false,
+      rootDir: req.rootDir,
+      pathInName: req.pathInName ?? false,
+      pathSeparator: req.separator
     });
     process.stdout.write(String(written));
     return;
