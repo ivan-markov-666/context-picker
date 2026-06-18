@@ -106,6 +106,8 @@ export interface CopyFilesOptions {
   stripComments: boolean;
   /** Drop blank/whitespace-only lines from text files before writing. */
   removeBlankLines: boolean;
+  /** When false (default), `.env` files are skipped entirely (to protect secrets). */
+  includeEnvFiles?: boolean;
   /**
    * Append `.txt` to every copied file (e.g. `app.ts` -> `app.ts.txt`) so that
    * tools which block source extensions (e.g. Microsoft 365 Copilot) accept the
@@ -139,6 +141,7 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
     rootDir,
     pathInName,
     pathSeparator,
+    includeEnvFiles,
   } = options;
   const sep = pathSeparator || '__';
 
@@ -151,6 +154,9 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
   const used = new Set<string>();
   let written = 0;
   for (const file of includedFiles) {
+    if (!includeEnvFiles && isEnvFile(file)) {
+      continue; // skip .env entirely when disabled (protect secrets)
+    }
     let name: string;
     if (pathInName && rootDir) {
       // Flatten the relative path into the name (e.g. src/lib/app.ts -> src__lib__app.ts).

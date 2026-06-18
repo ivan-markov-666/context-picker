@@ -107,6 +107,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       includedFiles: req.includedFiles ?? [],
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false,
+      includeEnvFiles: req.includeEnvFiles ?? false,
       appendTxtExtension: req.appendTxt ?? false,
       rootDir: req.rootDir,
       pathInName: req.pathInName ?? false,

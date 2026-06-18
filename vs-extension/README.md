@@ -13,6 +13,27 @@ in C#.
 > which Copilot accepts (the original extension stays in the name so the AI still
 > detects the language).
 
+## What you can do
+
+Open a solution, then **Tools → ContextPickerToolWindow**. In the panel:
+
+- **Refresh** — load the solution's file tree (a checkbox per file/folder).
+- **Filter** — paste file paths (one per line) to find files fast; **Check shown**
+  ticks all the matches at once.
+- Toggles: **Strip comments**, **Remove blank lines**, **Respect .gitignore**,
+  **Include .env** (off = secrets skipped), **Copy as .txt**.
+- **Generate** — opens the selected files' contents in an editor (also copied to
+  the clipboard).
+- **Copy Files** — copies the selected files into a temp folder and opens it.
+- **For OneDrive** — copies them to `Desktop\ContextPicker` with the relative path
+  encoded in each name + `.txt` (e.g. `src__lib__app.cs.txt`), ready to upload to
+  OneDrive (which shows everything flat).
+- **Copy Skeleton** — the project tree as text; the *“folders to exclude”* panel
+  chooses which folders to omit (root-only or, with the checkbox, nested too).
+- A footer shows the live **line / character** count and an optional **Max chars** limit.
+
+> Requires **Node.js on PATH** (the extension shells out to `node`).
+
 ## Layout
 
 ```

@@ -30,6 +30,10 @@ It can even collect the files into a folder for drag-and-drop upload.
   - **Copy as .txt** — optionally renames copies to `app.ts.txt`, so uploaders
     that block source extensions (e.g. **Microsoft 365 Copilot**) accept them
     while keeping the language visible in the name.
+- **Copy Files for OneDrive** ☁ — copies the selected files to
+  `Desktop\ContextPicker`, renaming each so its **relative path is encoded in the
+  name** plus `.txt` (e.g. `src/lib/app.ts` → `src__lib__app.ts.txt`). OneDrive
+  shows everything flat, so this keeps the original folder structure in the name.
 - **Copy Project Skeleton** — outputs just the directory tree, with your project
   name as the root.
   - **Configure Skeleton Excludes** ⚙ — tick which folders to omit from the
@@ -44,7 +48,8 @@ It can even collect the files into a folder for drag-and-drop upload.
   default (tree, generation and skeleton); a toggle reveals them.
 - **Build/IDE folders hidden** — `node_modules`, `.git`, `bin`, `obj`, `.vs` are
   skipped automatically.
-- **Skip secrets** — `.env` contents are excluded by default.
+- **`.env` toggle** 🔒 — a lock/unlock button. `.env` contents are **excluded by
+  default** (to protect secrets) and skipped from copies; turn it on to include them.
 - **Explorer quick actions** — right-click any file/folder to *Copy Contents
   (with subfolders)* or *Copy Skeleton From Here* without opening the panel.
 - Your selection is **remembered** between sessions.
@@ -52,13 +57,17 @@ It can even collect the files into a folder for drag-and-drop upload.
 ## How to use
 
 1. Click the **Context Picker** icon in the Activity Bar.
-2. Tick files/folders — or click **Select Files by Path** and paste a list.
-3. Watch the footer for the size (lines / chars).
-4. **Generate Contents** to get the text, or **Copy Files to Folder** to drag the
-   actual files into a chat.
+2. Tick files/folders — or click **Select Files by Path** 🔍 and paste a list.
+3. Optionally flip the toolbar toggles (strip comments, remove blank lines,
+   `.gitignore`, `.env`); the footer shows the resulting size (lines / chars).
+4. Output it:
+   - **Generate Contents** — one text block (editor / clipboard / file).
+   - **Copy Files to Folder** 🗎 — the real files in a temp folder to drag into a chat.
+   - **Copy Files for OneDrive** ☁ — path-named `.txt` copies on the Desktop to upload.
 
-> Uploading to **Microsoft 365 Copilot**? Turn on **Copy as .txt** (a red status-bar
-> reminder appears until you do) so the copied files upload as `.txt`.
+> Uploading to **Microsoft 365 Copilot**? Turn on **Copy as .txt** (or just use
+> **Copy Files for OneDrive**, which always adds `.txt`). A red status-bar reminder
+> shows until `.txt` is enabled.
 
 ## Settings
 
@@ -68,9 +77,10 @@ It can even collect the files into a folder for drag-and-drop upload.
 | `projectContext.stripComments` | `false` | Strip comments from supported source files |
 | `projectContext.removeBlankLines` | `false` | Drop blank/whitespace-only lines from generated content |
 | `projectContext.respectGitignore` | `true` | Hide files/folders matched by the workspace `.gitignore` |
-| `projectContext.includeEnvFiles` | `false` | Include `.env` content (off by default to protect secrets) |
+| `projectContext.includeEnvFiles` | `false` | Work with `.env` files (off skips their content **and** copies, to protect secrets; toggle via the lock button) |
 | `projectContext.maxChars` | `0` | Warn in the footer when the output exceeds this many characters (0 = off) |
 | `projectContext.skeletonExcludeFolders` | `node_modules, .git, bin, obj, .vs` | Folders omitted from Copy Skeleton (edit via the gear button) |
+| `projectContext.skeletonExcludesIncludeNested` | `false` | In *Configure Skeleton Excludes*, also list nested sub-folders (off = root only) |
 | `projectContext.copyAsTxt` | `false` | Append `.txt` to files in *Copy Files to Folder* (for Microsoft 365 Copilot) |
 
 Most actions also have a one-click button in the panel's title bar (some under the

@@ -4420,7 +4420,8 @@ async function copySelectionToDir(options) {
     appendTxtExtension,
     rootDir,
     pathInName,
-    pathSeparator
+    pathSeparator,
+    includeEnvFiles
   } = options;
   const sep = pathSeparator || "__";
   await fs2.promises.mkdir(targetDir, { recursive: true });
@@ -4430,6 +4431,9 @@ async function copySelectionToDir(options) {
   const used = /* @__PURE__ */ new Set();
   let written = 0;
   for (const file of includedFiles) {
+    if (!includeEnvFiles && isEnvFile(file)) {
+      continue;
+    }
     let name;
     if (pathInName && rootDir) {
       const rel = path2.relative(rootDir, file).replace(/\\/g, "/");
@@ -4698,6 +4702,7 @@ async function main(argv = process.argv) {
       includedFiles: req.includedFiles ?? [],
       stripComments: req.stripComments ?? false,
       removeBlankLines: req.removeBlankLines ?? false,
+      includeEnvFiles: req.includeEnvFiles ?? false,
       appendTxtExtension: req.appendTxt ?? false,
       rootDir: req.rootDir,
       pathInName: req.pathInName ?? false,

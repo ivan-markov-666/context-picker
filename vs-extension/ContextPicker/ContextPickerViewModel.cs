@@ -74,6 +74,13 @@ namespace ContextPicker
             set { _removeBlankLines = value; OnPropertyChanged("RemoveBlankLines"); ScheduleRecount(); }
         }
 
+        private bool _includeEnvFiles;
+        public bool IncludeEnvFiles
+        {
+            get { return _includeEnvFiles; }
+            set { _includeEnvFiles = value; OnPropertyChanged("IncludeEnvFiles"); ScheduleRecount(); }
+        }
+
         private bool _copyAsTxt;
         public bool CopyAsTxt
         {
@@ -218,7 +225,7 @@ namespace ContextPicker
                 IncludedFiles = files.ToArray(),
                 StripComments = StripComments,
                 RemoveBlankLines = RemoveBlankLines,
-                IncludeEnvFiles = false,
+                IncludeEnvFiles = IncludeEnvFiles,
             };
             string text = await NodeBridge.ScanAsync(_nodeExe, _scriptPath, request);
             ShowOutput(text);
@@ -265,7 +272,7 @@ namespace ContextPicker
             Status = "Copying " + files.Count + " file(s)...";
             string dir = Path.Combine(Path.GetTempPath(), "ContextPicker-files");
             int written = await NodeBridge.CopyFilesAsync(
-                _nodeExe, _scriptPath, dir, files.ToArray(), StripComments, RemoveBlankLines, CopyAsTxt);
+                _nodeExe, _scriptPath, dir, files.ToArray(), StripComments, RemoveBlankLines, IncludeEnvFiles, CopyAsTxt);
 
             try
             {
@@ -309,7 +316,7 @@ namespace ContextPicker
             string dir = Path.Combine(desktop, "ContextPicker");
             int written = await NodeBridge.CopyFilesAsync(
                 _nodeExe, _scriptPath, dir, files.ToArray(),
-                StripComments, RemoveBlankLines, true, _workspaceRoot, true, "__");
+                StripComments, RemoveBlankLines, IncludeEnvFiles, true, _workspaceRoot, true, "__");
 
             try
             {
@@ -424,7 +431,7 @@ namespace ContextPicker
                     IncludedFiles = files.ToArray(),
                     StripComments = StripComments,
                     RemoveBlankLines = RemoveBlankLines,
-                    IncludeEnvFiles = false,
+                    IncludeEnvFiles = IncludeEnvFiles,
                 };
                 ScanCount count = await NodeBridge.CountAsync(_nodeExe, _scriptPath, request);
                 if (seq != _countSeq) return; // a newer change superseded this run

@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -128,6 +128,18 @@
         "icon": "$(eye)"
       },
       {
+        "command": "projectContext.enableIncludeEnvFiles",
+        "title": ".env files: excluded (click to include)",
+        "category": "Context Picker",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "projectContext.disableIncludeEnvFiles",
+        "title": ".env files: included (click to exclude)",
+        "category": "Context Picker",
+        "icon": "$(unlock)"
+      },
+      {
         "command": "projectContext.refresh",
         "title": "Refresh",
         "category": "Context Picker",
@@ -209,6 +221,16 @@
           "group": "navigation@5"
         },
         {
+          "command": "projectContext.enableIncludeEnvFiles",
+          "when": "view == projectContext.tree && !config.projectContext.includeEnvFiles",
+          "group": "navigation@8"
+        },
+        {
+          "command": "projectContext.disableIncludeEnvFiles",
+          "when": "view == projectContext.tree && config.projectContext.includeEnvFiles",
+          "group": "navigation@8"
+        },
+        {
           "command": "projectContext.refresh",
           "when": "view == projectContext.tree",
           "group": "navigation@6"
@@ -272,7 +294,7 @@
         "projectContext.includeEnvFiles": {
           "type": "boolean",
           "default": false,
-          "description": "Include the content of .env files (disabled by default to protect secrets)."
+          "description": "Work with .env files. Off (default) skips their content in Generate and skips the files in Copy Files / OneDrive export, to protect secrets. Toggle it from the lock/unlock button in the view toolbar."
         },
         "projectContext.removeBlankLines": {
           "type": "boolean",

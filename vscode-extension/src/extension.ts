@@ -162,7 +162,8 @@ export function activate(context: vscode.ExtensionContext): void {
         event.affectsConfiguration('projectContext.stripComments') ||
         event.affectsConfiguration('projectContext.removeBlankLines') ||
         event.affectsConfiguration('projectContext.respectGitignore') ||
-        event.affectsConfiguration('projectContext.maxChars')
+        event.affectsConfiguration('projectContext.maxChars') ||
+        event.affectsConfiguration('projectContext.includeEnvFiles')
       ) {
         void updateCount();
       }
@@ -209,6 +210,13 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('projectContext.respectGitignore', () =>
       setBoolConfig('respectGitignore', true)
+    ),
+
+    vscode.commands.registerCommand('projectContext.enableIncludeEnvFiles', () =>
+      setBoolConfig('includeEnvFiles', true)
+    ),
+    vscode.commands.registerCommand('projectContext.disableIncludeEnvFiles', () =>
+      setBoolConfig('includeEnvFiles', false)
     ),
 
     vscode.commands.registerCommand('projectContext.clear', () => {
@@ -417,7 +425,7 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
     return;
   }
 
-  const { stripComments, removeBlankLines } = readScanConfig();
+  const { stripComments, removeBlankLines, includeEnvFiles } = readScanConfig();
   const appendTxtExtension = vscode.workspace
     .getConfiguration('projectContext')
     .get<boolean>('copyAsTxt', false);
@@ -428,6 +436,7 @@ async function copyFilesToFolder(selection: SelectionModel): Promise<void> {
       includedFiles: files,
       stripComments,
       removeBlankLines,
+      includeEnvFiles,
       appendTxtExtension,
     });
     await vscode.env.openExternal(vscode.Uri.file(dir));
@@ -465,7 +474,7 @@ async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
     return;
   }
 
-  const { stripComments, removeBlankLines } = readScanConfig();
+  const { stripComments, removeBlankLines, includeEnvFiles } = readScanConfig();
   const dir = path.join(resolveDesktop(), 'ContextPicker');
   try {
     const written = await copySelectionToDir({
@@ -473,6 +482,7 @@ async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
       includedFiles: files,
       stripComments,
       removeBlankLines,
+      includeEnvFiles,
       appendTxtExtension: true,
       rootDir: folders[0].uri.fsPath,
       pathInName: true,
