@@ -54,15 +54,17 @@ namespace ContextPicker
         /// blank-line stripping to text files when requested. Returns the count written.
         /// </summary>
         public static Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool includeEnvFiles, bool appendTxt)
-            => CopyFilesAsync(nodeExe, scriptPath, targetDir, files, stripComments, removeBlankLines, includeEnvFiles, appendTxt, null, false, null);
+            => CopyFilesAsync(nodeExe, scriptPath, targetDir, files, stripComments, removeBlankLines, includeEnvFiles, appendTxt, null, false, null, false);
 
         /// <summary>
         /// As above, but when pathInName is true each file's relative path (vs rootDir)
-        /// is encoded into its flat name using the given separator (default "__").
+        /// is encoded into its flat name using the given separator (default "__"). When
+        /// syncOnly is true the target is mirrored: only new/changed files are written
+        /// and files no longer selected are removed. Returns the count actually written.
         /// </summary>
-        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool includeEnvFiles, bool appendTxt, string rootDir, bool pathInName, string separator)
+        public static async Task<int> CopyFilesAsync(string nodeExe, string scriptPath, string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool includeEnvFiles, bool appendTxt, string rootDir, bool pathInName, string separator, bool syncOnly)
         {
-            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines, includeEnvFiles, appendTxt, rootDir, pathInName, separator)).ConfigureAwait(false);
+            string outp = await RunAsync(nodeExe, scriptPath, CopyFilesJson(targetDir, files, stripComments, removeBlankLines, includeEnvFiles, appendTxt, rootDir, pathInName, separator, syncOnly)).ConfigureAwait(false);
             int n;
             int.TryParse(outp.Trim(), out n);
             return n;
@@ -150,7 +152,7 @@ namespace ContextPicker
             return sb.ToString();
         }
 
-        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool includeEnvFiles, bool appendTxt, string rootDir, bool pathInName, string separator)
+        private static string CopyFilesJson(string targetDir, string[] files, bool stripComments, bool removeBlankLines, bool includeEnvFiles, bool appendTxt, string rootDir, bool pathInName, string separator, bool syncOnly)
         {
             var sb = new StringBuilder();
             sb.Append("{\"mode\":\"copyfiles\",");
@@ -178,6 +180,7 @@ namespace ContextPicker
             {
                 sb.Append(",\"separator\":").Append(JsonString(separator));
             }
+            sb.Append(",\"syncOnly\":").Append(Bool(syncOnly));
             sb.Append('}');
             return sb.ToString();
         }

@@ -486,10 +486,13 @@ async function copyFilesForOneDrive(selection: SelectionModel): Promise<void> {
       appendTxtExtension: true,
       rootDir: folders[0].uri.fsPath,
       pathInName: true,
+      syncOnly: true,
     });
     await vscode.env.openExternal(vscode.Uri.file(dir));
     vscode.window.showInformationMessage(
-      `Context Picker: copied ${written} file(s) to "${dir}" — path-named .txt, ready to upload to OneDrive.`
+      written === 0
+        ? `Context Picker: "${dir}" is already up to date — no changed files to upload.`
+        : `Context Picker: synced ${written} changed file(s) to "${dir}" (unchanged left untouched) — ready for OneDrive.`
     );
   } catch (err) {
     vscode.window.showErrorMessage(`Context Picker: could not copy files — ${String(err)}`);

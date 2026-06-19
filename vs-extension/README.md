@@ -27,7 +27,8 @@ Open a solution, then **Tools → ContextPickerToolWindow**. In the panel:
 - **Copy Files** — copies the selected files into a temp folder and opens it.
 - **For OneDrive** — copies them to `Desktop\ContextPicker` with the relative path
   encoded in each name + `.txt` (e.g. `src__lib__app.cs.txt`), ready to upload to
-  OneDrive (which shows everything flat).
+  OneDrive (which shows everything flat). It **syncs** — only new/changed files
+  are written and deselected ones removed, so OneDrive re-uploads just what changed.
 - **Copy Skeleton** — the project tree as text; the *“folders to exclude”* panel
   chooses which folders to omit (root-only or, with the checkbox, nested too).
 - A footer shows the live **line / character** count and an optional **Max chars** limit.

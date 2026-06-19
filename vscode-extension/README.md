@@ -34,6 +34,8 @@ It can even collect the files into a folder for drag-and-drop upload.
   `Desktop\ContextPicker`, renaming each so its **relative path is encoded in the
   name** plus `.txt` (e.g. `src/lib/app.ts` → `src__lib__app.ts.txt`). OneDrive
   shows everything flat, so this keeps the original folder structure in the name.
+  It **syncs**: only new/changed files are written and deselected ones removed, so
+  OneDrive re-uploads just what actually changed.
 - **Copy Project Skeleton** — outputs just the directory tree, with your project
   name as the root.
   - **Configure Skeleton Excludes** ⚙ — tick which folders to omit from the

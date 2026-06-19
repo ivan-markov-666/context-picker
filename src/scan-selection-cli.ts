@@ -35,6 +35,8 @@ interface Request {
   pathInName?: boolean;
   /** copyfiles mode only: separator used when pathInName is set (default "__"). */
   separator?: string;
+  /** copyfiles mode only: mirror the target (write only changed, delete stale) instead of wiping it. */
+  syncOnly?: boolean;
   /** skeleton mode only: explicit folder-name excludes (overrides DEFAULT_IGNORE). */
   excludeFolders?: string[];
 }
@@ -112,6 +114,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       rootDir: req.rootDir,
       pathInName: req.pathInName ?? false,
       pathSeparator: req.separator,
+      syncOnly: req.syncOnly ?? false,
     });
     process.stdout.write(String(written));
     return;

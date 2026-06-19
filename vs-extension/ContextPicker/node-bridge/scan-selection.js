@@ -4421,14 +4421,18 @@ async function copySelectionToDir(options) {
     rootDir,
     pathInName,
     pathSeparator,
-    includeEnvFiles
+    includeEnvFiles,
+    syncOnly
   } = options;
   const sep = pathSeparator || "__";
   await fs2.promises.mkdir(targetDir, { recursive: true });
-  for (const entry of await fs2.promises.readdir(targetDir)) {
-    await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
+  if (!syncOnly) {
+    for (const entry of await fs2.promises.readdir(targetDir)) {
+      await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
+    }
   }
   const used = /* @__PURE__ */ new Set();
+  const desired = /* @__PURE__ */ new Set();
   let written = 0;
   for (const file of includedFiles) {
     if (!includeEnvFiles && isEnvFile(file)) {
@@ -4452,14 +4456,34 @@ async function copySelectionToDir(options) {
     if (appendTxtExtension) {
       name += ".txt";
     }
+    desired.add(name);
     const dest = path2.join(targetDir, name);
     const processed = await processFileForCopy(file, stripComments, removeBlankLines);
-    if (processed === null) {
+    if (syncOnly) {
+      const newBuf = processed === null ? await fs2.promises.readFile(file) : Buffer.from(processed, "utf8");
+      let existing = null;
+      try {
+        existing = await fs2.promises.readFile(dest);
+      } catch {
+        existing = null;
+      }
+      if (existing && existing.equals(newBuf)) {
+        continue;
+      }
+      await fs2.promises.writeFile(dest, newBuf);
+    } else if (processed === null) {
       await fs2.promises.copyFile(file, dest);
     } else {
       await fs2.promises.writeFile(dest, processed, "utf8");
     }
     written += 1;
+  }
+  if (syncOnly) {
+    for (const entry of await fs2.promises.readdir(targetDir)) {
+      if (!desired.has(entry)) {
+        await fs2.promises.rm(path2.join(targetDir, entry), { recursive: true, force: true });
+      }
+    }
   }
   return written;
 }
@@ -4706,7 +4730,8 @@ async function main(argv = process.argv) {
       appendTxtExtension: req.appendTxt ?? false,
       rootDir: req.rootDir,
       pathInName: req.pathInName ?? false,
-      pathSeparator: req.separator
+      pathSeparator: req.separator,
+      syncOnly: req.syncOnly ?? false
     });
     process.stdout.write(String(written));
     return;

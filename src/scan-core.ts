@@ -124,12 +124,21 @@ export interface CopyFilesOptions {
   pathInName?: boolean;
   /** Separator that replaces path separators when {@link pathInName} is set (default "__"). */
   pathSeparator?: string;
+  /**
+   * Sync mode: don't wipe the folder. Write only new/changed files (skip those
+   * whose content already matches), and delete files no longer in the selection.
+   * Minimises churn for a synced folder such as OneDrive.
+   */
+  syncOnly?: boolean;
 }
 
 /**
- * Copies the selected files into `targetDir` as a flat set (cleaning it first),
- * applying comment / blank-line stripping to text files when requested. Binary
- * and `.env` files are copied verbatim. Returns the number of files written.
+ * Copies the selected files into `targetDir` as a flat set, applying comment /
+ * blank-line stripping to text files when requested. Binary and `.env` files are
+ * copied verbatim. By default the folder is cleared first; in {@link
+ * CopyFilesOptions.syncOnly} mode it is mirrored instead — only new/changed files
+ * are written and files no longer selected are removed. Returns the number of
+ * files actually written (i.e. new or changed).
  */
 export async function copySelectionToDir(options: CopyFilesOptions): Promise<number> {
   const {
@@ -142,16 +151,20 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
     pathInName,
     pathSeparator,
     includeEnvFiles,
+    syncOnly,
   } = options;
   const sep = pathSeparator || '__';
 
   await fs.promises.mkdir(targetDir, { recursive: true });
-  // Clear the contents but keep the folder itself (it may be open in a file manager).
-  for (const entry of await fs.promises.readdir(targetDir)) {
-    await fs.promises.rm(path.join(targetDir, entry), { recursive: true, force: true });
+  if (!syncOnly) {
+    // Clear the contents but keep the folder itself (it may be open in a file manager).
+    for (const entry of await fs.promises.readdir(targetDir)) {
+      await fs.promises.rm(path.join(targetDir, entry), { recursive: true, force: true });
+    }
   }
 
   const used = new Set<string>();
+  const desired = new Set<string>(); // target names that should remain after a sync
   let written = 0;
   for (const file of includedFiles) {
     if (!includeEnvFiles && isEnvFile(file)) {
@@ -176,15 +189,39 @@ export async function copySelectionToDir(options: CopyFilesOptions): Promise<num
     if (appendTxtExtension) {
       name += '.txt';
     }
+    desired.add(name);
     const dest = path.join(targetDir, name);
     const processed = await processFileForCopy(file, stripComments, removeBlankLines);
-    if (processed === null) {
+
+    if (syncOnly) {
+      const newBuf = processed === null ? await fs.promises.readFile(file) : Buffer.from(processed, 'utf8');
+      let existing: Buffer | null = null;
+      try {
+        existing = await fs.promises.readFile(dest);
+      } catch {
+        existing = null;
+      }
+      if (existing && existing.equals(newBuf)) {
+        continue; // unchanged -> leave it so a synced folder doesn't re-upload it
+      }
+      await fs.promises.writeFile(dest, newBuf);
+    } else if (processed === null) {
       await fs.promises.copyFile(file, dest);
     } else {
       await fs.promises.writeFile(dest, processed, 'utf8');
     }
     written += 1;
   }
+
+  if (syncOnly) {
+    // Remove files that are no longer part of the selection.
+    for (const entry of await fs.promises.readdir(targetDir)) {
+      if (!desired.has(entry)) {
+        await fs.promises.rm(path.join(targetDir, entry), { recursive: true, force: true });
+      }
+    }
+  }
+
   return written;
 }
 

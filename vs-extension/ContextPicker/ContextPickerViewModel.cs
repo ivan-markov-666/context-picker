@@ -316,7 +316,7 @@ namespace ContextPicker
             string dir = Path.Combine(desktop, "ContextPicker");
             int written = await NodeBridge.CopyFilesAsync(
                 _nodeExe, _scriptPath, dir, files.ToArray(),
-                StripComments, RemoveBlankLines, IncludeEnvFiles, true, _workspaceRoot, true, "__");
+                StripComments, RemoveBlankLines, IncludeEnvFiles, true, _workspaceRoot, true, "__", true);
 
             try
             {
@@ -324,7 +324,9 @@ namespace ContextPicker
             }
             catch { }
 
-            Status = "Copied " + written + " file(s) to Desktop\\ContextPicker — path-named .txt, ready for OneDrive.";
+            Status = written == 0
+                ? "OneDrive folder already up to date — no changed files."
+                : "Synced " + written + " changed file(s) to Desktop\\ContextPicker (unchanged left untouched).";
         }
 
         /// <summary>Filters the tree to the paths pasted in the search box.</summary>
