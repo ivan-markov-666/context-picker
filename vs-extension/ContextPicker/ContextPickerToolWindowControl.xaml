@@ -58,6 +58,22 @@
                 </DockPanel>
             </StackPanel>
         </Expander>
+        <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
+            Header="Presets (saved selections)"
+            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+            <StackPanel Margin="14,2,0,0">
+                <DockPanel Margin="0,2">
+                    <Button DockPanel.Dock="Right" Content="Delete" Command="{Binding DeletePresetCommand}" Margin="4,0,0,0" Padding="6,1"/>
+                    <Button DockPanel.Dock="Right" Content="Load" Command="{Binding LoadPresetCommand}" Margin="4,0,0,0" Padding="6,1"/>
+                    <ComboBox ItemsSource="{Binding PresetNames}" SelectedItem="{Binding SelectedPreset}" VerticalAlignment="Center"/>
+                </DockPanel>
+                <DockPanel Margin="0,4,0,0">
+                    <Button DockPanel.Dock="Right" Content="Save" Command="{Binding SavePresetCommand}" Margin="4,0,0,0" Padding="6,1"/>
+                    <TextBox Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"
+                        ToolTip="Type a name and click Save to store the current selection. Leave empty to overwrite the selected preset."/>
+                </DockPanel>
+            </StackPanel>
+        </Expander>
         <DockPanel DockPanel.Dock="Top" Margin="6,0,6,4">
             <TextBlock DockPanel.Dock="Top" Text="Filter — paste file paths (one per line):" Margin="0,0,0,2"
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>

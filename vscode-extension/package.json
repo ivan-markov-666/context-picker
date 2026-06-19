@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -152,6 +152,24 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "projectContext.savePreset",
+        "title": "Save Preset",
+        "category": "Context Picker",
+        "icon": "$(save)"
+      },
+      {
+        "command": "projectContext.loadPreset",
+        "title": "Load Preset",
+        "category": "Context Picker",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "projectContext.deletePreset",
+        "title": "Delete Preset",
+        "category": "Context Picker",
+        "icon": "$(trash)"
+      },
+      {
         "command": "projectContext.selectByPaths",
         "title": "Select Files by Path…",
         "category": "Context Picker",
@@ -176,89 +194,104 @@
     "menus": {
       "view/title": [
         {
-          "command": "projectContext.selectByPaths",
-          "when": "view == projectContext.tree",
-          "group": "navigation@0"
-        },
-        {
-          "command": "projectContext.generate",
+          "command": "projectContext.loadPreset",
           "when": "view == projectContext.tree",
           "group": "navigation@1"
         },
         {
-          "command": "projectContext.copySkeleton",
+          "command": "projectContext.generate",
           "when": "view == projectContext.tree",
           "group": "navigation@2"
         },
         {
-          "command": "projectContext.enableStripComments",
-          "when": "view == projectContext.tree && !config.projectContext.stripComments",
+          "command": "projectContext.copyFilesForOneDrive",
+          "when": "view == projectContext.tree",
           "group": "navigation@3"
-        },
-        {
-          "command": "projectContext.disableStripComments",
-          "when": "view == projectContext.tree && config.projectContext.stripComments",
-          "group": "navigation@3"
-        },
-        {
-          "command": "projectContext.enableRemoveBlankLines",
-          "when": "view == projectContext.tree && !config.projectContext.removeBlankLines",
-          "group": "navigation@4"
-        },
-        {
-          "command": "projectContext.disableRemoveBlankLines",
-          "when": "view == projectContext.tree && config.projectContext.removeBlankLines",
-          "group": "navigation@4"
-        },
-        {
-          "command": "projectContext.showGitignored",
-          "when": "view == projectContext.tree && config.projectContext.respectGitignore",
-          "group": "navigation@5"
-        },
-        {
-          "command": "projectContext.respectGitignore",
-          "when": "view == projectContext.tree && !config.projectContext.respectGitignore",
-          "group": "navigation@5"
-        },
-        {
-          "command": "projectContext.enableIncludeEnvFiles",
-          "when": "view == projectContext.tree && !config.projectContext.includeEnvFiles",
-          "group": "navigation@8"
-        },
-        {
-          "command": "projectContext.disableIncludeEnvFiles",
-          "when": "view == projectContext.tree && config.projectContext.includeEnvFiles",
-          "group": "navigation@8"
         },
         {
           "command": "projectContext.refresh",
           "when": "view == projectContext.tree",
-          "group": "navigation@6"
+          "group": "navigation@4"
         },
         {
-          "command": "projectContext.clear",
+          "command": "projectContext.selectByPaths",
           "when": "view == projectContext.tree",
-          "group": "navigation@7"
+          "group": "1_more@1"
         },
         {
-          "command": "projectContext.configureSkeletonExcludes",
+          "command": "projectContext.savePreset",
           "when": "view == projectContext.tree",
-          "group": "1_config@1"
+          "group": "1_more@2"
         },
         {
-          "command": "projectContext.setMaxChars",
+          "command": "projectContext.deletePreset",
           "when": "view == projectContext.tree",
-          "group": "1_config@2"
+          "group": "1_more@3"
         },
         {
           "command": "projectContext.copyFilesToFolder",
           "when": "view == projectContext.tree",
-          "group": "navigation@10"
+          "group": "1_more@4"
         },
         {
-          "command": "projectContext.copyFilesForOneDrive",
+          "command": "projectContext.copySkeleton",
           "when": "view == projectContext.tree",
-          "group": "navigation@11"
+          "group": "1_more@5"
+        },
+        {
+          "command": "projectContext.clear",
+          "when": "view == projectContext.tree",
+          "group": "1_more@6"
+        },
+        {
+          "command": "projectContext.enableStripComments",
+          "when": "view == projectContext.tree && !config.projectContext.stripComments",
+          "group": "2_toggles@1"
+        },
+        {
+          "command": "projectContext.disableStripComments",
+          "when": "view == projectContext.tree && config.projectContext.stripComments",
+          "group": "2_toggles@1"
+        },
+        {
+          "command": "projectContext.enableRemoveBlankLines",
+          "when": "view == projectContext.tree && !config.projectContext.removeBlankLines",
+          "group": "2_toggles@2"
+        },
+        {
+          "command": "projectContext.disableRemoveBlankLines",
+          "when": "view == projectContext.tree && config.projectContext.removeBlankLines",
+          "group": "2_toggles@2"
+        },
+        {
+          "command": "projectContext.showGitignored",
+          "when": "view == projectContext.tree && config.projectContext.respectGitignore",
+          "group": "2_toggles@3"
+        },
+        {
+          "command": "projectContext.respectGitignore",
+          "when": "view == projectContext.tree && !config.projectContext.respectGitignore",
+          "group": "2_toggles@3"
+        },
+        {
+          "command": "projectContext.enableIncludeEnvFiles",
+          "when": "view == projectContext.tree && !config.projectContext.includeEnvFiles",
+          "group": "2_toggles@4"
+        },
+        {
+          "command": "projectContext.disableIncludeEnvFiles",
+          "when": "view == projectContext.tree && config.projectContext.includeEnvFiles",
+          "group": "2_toggles@4"
+        },
+        {
+          "command": "projectContext.configureSkeletonExcludes",
+          "when": "view == projectContext.tree",
+          "group": "3_config@1"
+        },
+        {
+          "command": "projectContext.setMaxChars",
+          "when": "view == projectContext.tree",
+          "group": "3_config@2"
         }
       ],
       "explorer/context": [

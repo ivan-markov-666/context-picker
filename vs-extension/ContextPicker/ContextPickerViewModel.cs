@@ -30,6 +30,9 @@ namespace ContextPicker
             AddExcludeCommand = new RelayCommand(AddExclude);
             CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
             CopyToDesktopCommand = new RelayCommand(() => RunSafe(CopyToDesktopAsync));
+            SavePresetCommand = new RelayCommand(SavePreset);
+            LoadPresetCommand = new RelayCommand(LoadPreset);
+            DeletePresetCommand = new RelayCommand(DeletePreset);
             LoadShowNestedExcludes();
             LoadSkeletonExcludes();
             LoadMaxChars();
@@ -49,6 +52,26 @@ namespace ContextPicker
         public ICommand AddExcludeCommand { get; private set; }
         public ICommand CopyFilesCommand { get; private set; }
         public ICommand CopyToDesktopCommand { get; private set; }
+        public ICommand SavePresetCommand { get; private set; }
+        public ICommand LoadPresetCommand { get; private set; }
+        public ICommand DeletePresetCommand { get; private set; }
+
+        /// <summary>Saved selection presets for the current workspace.</summary>
+        public ObservableCollection<string> PresetNames { get; } = new ObservableCollection<string>();
+
+        private string _selectedPreset;
+        public string SelectedPreset
+        {
+            get { return _selectedPreset; }
+            set { _selectedPreset = value; OnPropertyChanged("SelectedPreset"); }
+        }
+
+        private string _newPresetName = string.Empty;
+        public string NewPresetName
+        {
+            get { return _newPresetName; }
+            set { _newPresetName = value; OnPropertyChanged("NewPresetName"); }
+        }
 
         /// <summary>Folders the user can omit from Copy Skeleton (ticked = omitted).</summary>
         public ObservableCollection<SkeletonExcludeItem> SkeletonExcludes { get; } = new ObservableCollection<SkeletonExcludeItem>();
@@ -195,6 +218,7 @@ namespace ContextPicker
             RootNodes.Add(root);
             SubscribeToNodes(root); // so the live counter reacts to ticking
             RebuildSkeletonExcludes(); // now include this project's folders (any depth)
+            RefreshPresetNames();
             ApplyFilter(); // honour any active filter + open the root
             Status = "Ready. Tick files/folders, then Generate.";
             ScheduleRecount();
@@ -327,6 +351,152 @@ namespace ContextPicker
             Status = written == 0
                 ? "OneDrive folder already up to date — no changed files."
                 : "Synced " + written + " changed file(s) to Desktop\\ContextPicker (unchanged left untouched).";
+        }
+
+        // --- Selection presets (named, per-workspace, persisted) ---
+
+        private void SavePreset()
+        {
+            string name = (NewPresetName ?? string.Empty).Trim();
+            if (name.Length == 0) name = SelectedPreset;
+            if (string.IsNullOrEmpty(name)) { Status = "Type a preset name first."; return; }
+            if (string.IsNullOrEmpty(_workspaceRoot)) { Status = "Open a solution first."; return; }
+
+            var files = new List<string>();
+            foreach (FileNode root in RootNodes) root.CollectCheckedFiles(files);
+            var rels = new List<string>();
+            foreach (string f in files)
+            {
+                string rel = ToRelative(_workspaceRoot, f);
+                if (rel.Length > 0) rels.Add(rel);
+            }
+
+            var lines = ReadAllPresetLines();
+            lines.RemoveAll(p => p.Length >= 2
+                && string.Equals(p[0], _workspaceRoot, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(p[1], name, StringComparison.OrdinalIgnoreCase));
+            var entry = new List<string> { _workspaceRoot, name };
+            entry.AddRange(rels);
+            lines.Add(entry.ToArray());
+            WriteAllPresetLines(lines);
+
+            NewPresetName = string.Empty;
+            RefreshPresetNames();
+            SelectedPreset = name;
+            Status = "Saved preset \"" + name + "\" (" + rels.Count + " file(s)).";
+        }
+
+        private void LoadPreset()
+        {
+            string name = SelectedPreset;
+            if (string.IsNullOrEmpty(name)) { Status = "Pick a preset to load."; return; }
+            if (RootNodes.Count == 0) { Status = "Nothing loaded. Click Refresh first."; return; }
+
+            string[] entry = null;
+            foreach (string[] p in ReadAllPresetLines())
+            {
+                if (p.Length >= 2
+                    && string.Equals(p[0], _workspaceRoot, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(p[1], name, StringComparison.OrdinalIgnoreCase))
+                {
+                    entry = p;
+                    break;
+                }
+            }
+            if (entry == null) { Status = "Preset not found."; return; }
+
+            foreach (FileNode root in RootNodes) root.IsChecked = false; // clear current selection first
+            var map = new Dictionary<string, FileNode>(StringComparer.OrdinalIgnoreCase);
+            foreach (FileNode root in RootNodes) BuildPathMap(root, map);
+
+            int ticked = 0;
+            for (int i = 2; i < entry.Length; i++)
+            {
+                string abs = Path.Combine(_workspaceRoot, entry[i].Replace('/', Path.DirectorySeparatorChar));
+                FileNode node;
+                if (map.TryGetValue(abs, out node)) { node.IsChecked = true; ticked++; }
+            }
+            Status = "Loaded preset \"" + name + "\" — ticked " + ticked + " of " + (entry.Length - 2) + " file(s).";
+        }
+
+        private void DeletePreset()
+        {
+            string name = SelectedPreset;
+            if (string.IsNullOrEmpty(name)) { Status = "Pick a preset to delete."; return; }
+            var lines = ReadAllPresetLines();
+            int before = lines.Count;
+            lines.RemoveAll(p => p.Length >= 2
+                && string.Equals(p[0], _workspaceRoot, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(p[1], name, StringComparison.OrdinalIgnoreCase));
+            WriteAllPresetLines(lines);
+            RefreshPresetNames();
+            Status = before > lines.Count ? "Deleted preset \"" + name + "\"." : "Preset not found.";
+        }
+
+        private void BuildPathMap(FileNode node, Dictionary<string, FileNode> map)
+        {
+            if (!node.IsDirectory && !string.IsNullOrEmpty(node.FullPath))
+            {
+                map[node.FullPath] = node;
+            }
+            foreach (FileNode child in node.Children) BuildPathMap(child, map);
+        }
+
+        private void RefreshPresetNames()
+        {
+            PresetNames.Clear();
+            if (string.IsNullOrEmpty(_workspaceRoot)) return;
+            var names = new List<string>();
+            foreach (string[] p in ReadAllPresetLines())
+            {
+                if (p.Length >= 2 && string.Equals(p[0], _workspaceRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    names.Add(p[1]);
+                }
+            }
+            names.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (string n in names) PresetNames.Add(n);
+        }
+
+        private static string PresetsFilePath()
+        {
+            string dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ContextPicker");
+            return Path.Combine(dir, "presets.tsv");
+        }
+
+        private static List<string[]> ReadAllPresetLines()
+        {
+            var lines = new List<string[]>();
+            try
+            {
+                string file = PresetsFilePath();
+                if (File.Exists(file))
+                {
+                    foreach (string raw in File.ReadAllLines(file))
+                    {
+                        if (raw.Length == 0) continue;
+                        string[] parts = raw.Split('\t');
+                        if (parts.Length >= 2) lines.Add(parts);
+                    }
+                }
+            }
+            catch { }
+            return lines;
+        }
+
+        private static void WriteAllPresetLines(List<string[]> lines)
+        {
+            try
+            {
+                string file = PresetsFilePath();
+                Directory.CreateDirectory(Path.GetDirectoryName(file));
+                var outLines = new List<string>();
+                foreach (string[] p in lines) outLines.Add(string.Join("\t", p));
+                File.WriteAllLines(file, outLines);
+            }
+            catch { }
         }
 
         /// <summary>Filters the tree to the paths pasted in the search box.</summary>

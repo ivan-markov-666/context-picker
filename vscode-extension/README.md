@@ -25,6 +25,10 @@ It can even collect the files into a folder for drag-and-drop upload.
   file).
 - **Select Files by Path** 🔍 — paste a list of paths (e.g. the files an LLM asked
   for) and every matching file is ticked automatically.
+- **Presets** 🔖 — save the current selection under a name and reload it later, so
+  you can return to a whole structure (e.g. what you upload to OneDrive) in one
+  click. Saved per-workspace; *Save / Load / Delete Preset* live in the toolbar /
+  `…` menu.
 - **Copy Files to Folder** 🗎 — copies the selected files into one folder and opens
   it, so you can drag them straight into a chat. Cleaned on each run.
   - **Copy as .txt** — optionally renames copies to `app.ts.txt`, so uploaders

@@ -106,6 +106,18 @@ export class SelectionModel {
     this.save();
   }
 
+  /** Snapshot the current selection (for saving a preset). */
+  snapshot(): { included: string[]; excluded: string[] } {
+    return { included: [...this.included], excluded: [...this.excluded] };
+  }
+
+  /** Replace the current selection from a saved snapshot (loading a preset). */
+  restore(snap: { included?: string[]; excluded?: string[] }): void {
+    this.included = new Set(snap.included ?? []);
+    this.excluded = new Set(snap.excluded ?? []);
+    this.save();
+  }
+
   stats(): { includes: number; excludes: number } {
     return { includes: this.included.size, excludes: this.excluded.size };
   }

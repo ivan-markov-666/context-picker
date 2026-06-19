@@ -225,6 +225,15 @@ export function activate(context: vscode.ExtensionContext): void {
       scheduleCount();
     }),
 
+    vscode.commands.registerCommand('projectContext.savePreset', () => savePreset(context, selection)),
+    vscode.commands.registerCommand('projectContext.loadPreset', async () => {
+      if (await loadPreset(context, selection)) {
+        scheduleRefresh();
+        scheduleCount();
+      }
+    }),
+    vscode.commands.registerCommand('projectContext.deletePreset', () => deletePreset(context)),
+
     vscode.commands.registerCommand('projectContext.selectByPaths', async () => {
       await selectByPaths(selection);
       scheduleRefresh();
@@ -775,4 +784,71 @@ async function setMaxChars(): Promise<void> {
     ? vscode.ConfigurationTarget.Workspace
     : vscode.ConfigurationTarget.Global;
   await cfg.update('maxChars', n, target);
+}
+
+// --- Selection presets (named snapshots, stored per workspace) ---
+
+const PRESETS_KEY = 'projectContext.presets.v1';
+interface PresetMap {
+  [name: string]: { included: string[]; excluded: string[] };
+}
+
+function getPresets(context: vscode.ExtensionContext): PresetMap {
+  return context.workspaceState.get<PresetMap>(PRESETS_KEY, {});
+}
+
+/** Saves the current selection under a name so it can be restored later. */
+async function savePreset(context: vscode.ExtensionContext, selection: SelectionModel): Promise<void> {
+  const name = await vscode.window.showInputBox({
+    title: 'Context Picker — save preset',
+    prompt: 'Name this selection so you can restore the whole structure later',
+    ignoreFocusOut: true,
+  });
+  if (!name || !name.trim()) {
+    return;
+  }
+  const presets = getPresets(context);
+  presets[name.trim()] = selection.snapshot();
+  await context.workspaceState.update(PRESETS_KEY, presets);
+  vscode.window.showInformationMessage(`Context Picker: saved preset "${name.trim()}".`);
+}
+
+/** Restores a saved selection. Returns true if one was loaded. */
+async function loadPreset(context: vscode.ExtensionContext, selection: SelectionModel): Promise<boolean> {
+  const presets = getPresets(context);
+  const names = Object.keys(presets).sort((a, b) => a.localeCompare(b));
+  if (names.length === 0) {
+    vscode.window.showInformationMessage('Context Picker: no saved presets yet — tick files, then "Save Preset".');
+    return false;
+  }
+  const pick = await vscode.window.showQuickPick(names, {
+    title: 'Context Picker — load preset',
+    placeHolder: 'Pick a selection to restore',
+  });
+  if (!pick) {
+    return false;
+  }
+  selection.restore(presets[pick]);
+  vscode.window.showInformationMessage(`Context Picker: loaded preset "${pick}".`);
+  return true;
+}
+
+/** Deletes a saved preset. */
+async function deletePreset(context: vscode.ExtensionContext): Promise<void> {
+  const presets = getPresets(context);
+  const names = Object.keys(presets).sort((a, b) => a.localeCompare(b));
+  if (names.length === 0) {
+    vscode.window.showInformationMessage('Context Picker: no saved presets.');
+    return;
+  }
+  const pick = await vscode.window.showQuickPick(names, {
+    title: 'Context Picker — delete preset',
+    placeHolder: 'Pick a preset to delete',
+  });
+  if (!pick) {
+    return;
+  }
+  delete presets[pick];
+  await context.workspaceState.update(PRESETS_KEY, presets);
+  vscode.window.showInformationMessage(`Context Picker: deleted preset "${pick}".`);
 }

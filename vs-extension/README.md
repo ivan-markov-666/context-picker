@@ -20,6 +20,8 @@ Open a solution, then **Tools → ContextPickerToolWindow**. In the panel:
 - **Refresh** — load the solution's file tree (a checkbox per file/folder).
 - **Filter** — paste file paths (one per line) to find files fast; **Check shown**
   ticks all the matches at once.
+- **Presets** — in the *Presets* panel, **Save** the current selection under a name,
+  then **Load** it later to return to that whole structure in one click (per-solution).
 - Toggles: **Strip comments**, **Remove blank lines**, **Respect .gitignore**,
   **Include .env** (off = secrets skipped), **Copy as .txt**.
 - **Generate** — opens the selected files' contents in an editor (also copied to
