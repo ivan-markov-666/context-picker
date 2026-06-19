@@ -2,7 +2,7 @@
   "name": "context-picker",
   "displayName": "Context Picker",
   "description": "Pick files and folders with checkboxes, then copy their contents or a project skeleton — built for pasting code context into LLMs.",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "publisher": "IvanMarkov",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -194,27 +194,37 @@
     "menus": {
       "view/title": [
         {
-          "command": "projectContext.loadPreset",
+          "command": "projectContext.selectByPaths",
           "when": "view == projectContext.tree",
           "group": "navigation@1"
         },
         {
-          "command": "projectContext.generate",
+          "command": "projectContext.copySkeleton",
           "when": "view == projectContext.tree",
           "group": "navigation@2"
         },
         {
-          "command": "projectContext.copyFilesForOneDrive",
+          "command": "projectContext.generate",
           "when": "view == projectContext.tree",
           "group": "navigation@3"
         },
         {
-          "command": "projectContext.refresh",
+          "command": "projectContext.copyFilesToFolder",
           "when": "view == projectContext.tree",
           "group": "navigation@4"
         },
         {
-          "command": "projectContext.selectByPaths",
+          "command": "projectContext.copyFilesForOneDrive",
+          "when": "view == projectContext.tree",
+          "group": "navigation@5"
+        },
+        {
+          "command": "projectContext.clear",
+          "when": "view == projectContext.tree",
+          "group": "navigation@6"
+        },
+        {
+          "command": "projectContext.loadPreset",
           "when": "view == projectContext.tree",
           "group": "1_more@1"
         },
@@ -229,19 +239,9 @@
           "group": "1_more@3"
         },
         {
-          "command": "projectContext.copyFilesToFolder",
+          "command": "projectContext.refresh",
           "when": "view == projectContext.tree",
           "group": "1_more@4"
-        },
-        {
-          "command": "projectContext.copySkeleton",
-          "when": "view == projectContext.tree",
-          "group": "1_more@5"
-        },
-        {
-          "command": "projectContext.clear",
-          "when": "view == projectContext.tree",
-          "group": "1_more@6"
         },
         {
           "command": "projectContext.enableStripComments",

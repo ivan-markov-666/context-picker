@@ -34,18 +34,15 @@ export function activate(context: vscode.ExtensionContext): void {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       treeView.message = 'Open a folder to begin.';
+      treeView.description = undefined;
       return;
     }
+    // The live count lives in the view header (description), NOT in a message
+    // banner above the tree, so updating it never shifts the tree.
+    treeView.message = undefined;
     const seq = ++countSeq;
 
-    // Show only the transforms that are currently ACTIVE, to keep it compact.
     const cfg = vscode.workspace.getConfiguration('projectContext');
-    const flags: string[] = [];
-    if (cfg.get<boolean>('stripComments', false)) flags.push('no comments');
-    if (cfg.get<boolean>('removeBlankLines', false)) flags.push('no blank lines');
-    if (!cfg.get<boolean>('respectGitignore', true)) flags.push('incl. .gitignore');
-    const tail = flags.length ? ` · ${flags.join(' · ')}` : '';
-
     const isIgnored = await buildIgnorePredicate();
     const files: string[] = [];
     for (const folder of folders) {
@@ -54,13 +51,13 @@ export function activate(context: vscode.ExtensionContext): void {
     if (seq !== countSeq) return; // superseded by a newer change
 
     if (files.length === 0) {
-      treeView.message = `Tick files and folders to include them${tail}.`;
+      treeView.description = 'no files selected';
       return;
     }
 
     // Build the real output (respecting strip-comments / blank-lines) and measure
     // it, so the counter reflects exactly what "Generate Contents" would produce.
-    treeView.message = `${files.length} file(s) · measuring…${tail}`;
+    treeView.description = `${files.length} file(s) · measuring…`;
     const { includeEnvFiles, stripComments, removeBlankLines } = readScanConfig();
     let text: string;
     try {
@@ -81,10 +78,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const lines = chars === 0 ? 0 : text.split(/\r\n|\r|\n/).length;
     const maxChars = cfg.get<number>('maxChars', 0);
     const over = maxChars > 0 && chars > maxChars;
-    const limit = maxChars > 0 ? ` / ${maxChars.toLocaleString()} max` : '';
-    const prefix = over ? '⚠ OVER LIMIT — ' : '';
-    treeView.message =
-      `${prefix}${files.length} file(s) · ${lines.toLocaleString()} lines · ${chars.toLocaleString()} chars${limit}${tail}`;
+    treeView.description = over
+      ? `⚠ OVER ${chars.toLocaleString()}/${maxChars.toLocaleString()} chars · ${files.length} files`
+      : `${files.length} files · ${lines.toLocaleString()} lines · ${chars.toLocaleString()} chars`;
   }
   function scheduleCount(): void {
     if (countTimer) {
