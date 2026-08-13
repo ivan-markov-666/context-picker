@@ -26,7 +26,7 @@ namespace ContextPicker
     /// Invokes the bundled Node CLI (scan-selection.js) to reuse the
     /// directory-scanner core (including comment-bear). Three modes:
     /// scan (files -> formatted contents), tree (JSON listing for the checkbox
-    /// UI), skeleton (project tree as text). Dependency-free and hand-rolled JSON
+    /// UI), skeleton (selected files -> tree as text). Dependency-free and hand-rolled JSON
     /// so it compiles on .NET Framework 4.7.2 (the VSIX) and modern .NET.
     /// </summary>
     public static class NodeBridge
@@ -79,16 +79,12 @@ namespace ContextPicker
         public static Task<string> TreeAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
             => RunAsync(nodeExe, scriptPath, ModeJson("tree", rootDir, respectGitignore));
 
-        /// <summary>root -> the project skeleton (tree) as text.</summary>
-        public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore)
-            => RunAsync(nodeExe, scriptPath, ModeJson("skeleton", rootDir, respectGitignore));
-
         /// <summary>
-        /// root -> project skeleton, with an explicit list of folder names to omit
-        /// (overrides the bridge defaults). An empty list omits nothing.
+        /// selected files -> their skeleton (tree) as text: only the folders that
+        /// hold one of the files, plus the ancestors linking them to rootDir.
         /// </summary>
-        public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, bool respectGitignore, string[] excludeFolders)
-            => RunAsync(nodeExe, scriptPath, SkeletonJson(rootDir, respectGitignore, excludeFolders));
+        public static Task<string> SkeletonAsync(string nodeExe, string scriptPath, string rootDir, string[] includedFiles)
+            => RunAsync(nodeExe, scriptPath, SkeletonJson(rootDir, includedFiles));
 
         private static async Task<string> RunAsync(string nodeExe, string scriptPath, string json)
         {
@@ -192,19 +188,18 @@ namespace ContextPicker
                 + ",\"respectGitignore\":" + Bool(respectGitignore) + "}";
         }
 
-        private static string SkeletonJson(string rootDir, bool respectGitignore, string[] excludeFolders)
+        private static string SkeletonJson(string rootDir, string[] includedFiles)
         {
             var sb = new StringBuilder();
             sb.Append("{\"mode\":\"skeleton\",");
             sb.Append("\"rootDir\":").Append(JsonString(rootDir)).Append(',');
-            sb.Append("\"respectGitignore\":").Append(Bool(respectGitignore)).Append(',');
-            sb.Append("\"excludeFolders\":[");
-            if (excludeFolders != null)
+            sb.Append("\"includedFiles\":[");
+            if (includedFiles != null)
             {
-                for (int i = 0; i < excludeFolders.Length; i++)
+                for (int i = 0; i < includedFiles.Length; i++)
                 {
                     if (i > 0) sb.Append(',');
-                    sb.Append(JsonString(excludeFolders[i]));
+                    sb.Append(JsonString(includedFiles[i]));
                 }
             }
             sb.Append("]}");

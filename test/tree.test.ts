@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {
   buildTree,
+  buildTreeFromPaths,
   renderTree,
   countTree,
   resolveRootName,
@@ -186,5 +187,67 @@ describe('parseTreeArgs', () => {
 
   test('sets help when requested', () => {
     assert.equal(parseTreeArgs(['node', 'tree', '--help']).help, true);
+  });
+});
+
+describe('buildTreeFromPaths', () => {
+  const root = path.join(path.sep, 'proj');
+  const abs = (...parts: string[]): string => path.join(root, ...parts);
+
+  test('keeps only the folders that hold a selected file', () => {
+    const nodes = buildTreeFromPaths(root, [abs('src', 'a.ts'), abs('docs', 'guide.md')]);
+    const rendered = renderTree({ name: 'proj', isDirectory: true, children: nodes });
+    assert.equal(
+      rendered,
+      ['proj', '├── docs/', '│   └── guide.md', '└── src/', '    └── a.ts'].join('\n')
+    );
+  });
+
+  test('keeps the ancestor chain of a nested folder', () => {
+    const nodes = buildTreeFromPaths(root, [abs('src', 'lib', 'deep', 'app.ts')]);
+    assert.equal(nodes.length, 1);
+    assert.equal(nodes[0].name, 'src');
+    assert.equal(nodes[0].children[0].name, 'lib');
+    assert.equal(nodes[0].children[0].children[0].name, 'deep');
+    assert.deepEqual(
+      nodes[0].children[0].children[0].children.map((n) => n.name),
+      ['app.ts']
+    );
+  });
+
+  test('lists only the selected files of a folder, directories first', () => {
+    const nodes = buildTreeFromPaths(root, [
+      abs('src', 'b.ts'),
+      abs('src', 'a.ts'),
+      abs('src', 'nested', 'deep.ts'),
+    ]);
+    assert.deepEqual(
+      nodes[0].children.map((n) => n.name),
+      ['nested', 'a.ts', 'b.ts']
+    );
+  });
+
+  test('sets the absolute path on every node', () => {
+    const nodes = buildTreeFromPaths(root, [abs('src', 'a.ts')]);
+    assert.equal(nodes[0].path, abs('src'));
+    assert.equal(nodes[0].children[0].path, abs('src', 'a.ts'));
+  });
+
+  test('ignores duplicates and the root itself', () => {
+    const nodes = buildTreeFromPaths(root, [abs('a.ts'), abs('a.ts'), root]);
+    assert.deepEqual(
+      nodes.map((n) => n.name),
+      ['a.ts']
+    );
+  });
+
+  test('returns nothing for an empty selection', () => {
+    assert.deepEqual(buildTreeFromPaths(root, []), []);
+  });
+
+  test('counts as files-only (no folders invented)', () => {
+    const nodes = buildTreeFromPaths(root, [abs('src', 'a.ts'), abs('README.md')]);
+    const counts = countTree({ name: 'proj', isDirectory: true, children: nodes });
+    assert.deepEqual(counts, { dirs: 1, files: 2 });
   });
 });

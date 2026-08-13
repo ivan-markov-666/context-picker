@@ -98,6 +98,85 @@ export async function buildTree(
 }
 
 /**
+ * Builds a tree out of an explicit list of files instead of walking the disk.
+ *
+ * Only the directories that actually hold one of the given files appear, plus
+ * the ancestors that link them to `rootDir` (a tree needs the connecting
+ * chain). Sibling folders without a single listed file are left out entirely.
+ * The files themselves are kept as leaves. This is what the editor extensions
+ * use for "Copy Skeleton": the skeleton mirrors the current selection, so no
+ * blacklist or `.gitignore` filtering is needed here — the caller's file list
+ * has already been through it.
+ *
+ * Files outside `rootDir` keep the `..` segments of their relative path, which
+ * matches how the scanner labels them.
+ *
+ * @param rootDir Base directory the paths are made relative to
+ * @param filePaths Absolute paths of the selected files, in any order
+ * @returns The child nodes of `rootDir`, sorted like {@link buildTree}
+ */
+export function buildTreeFromPaths(rootDir: string, filePaths: string[]): TreeNode[] {
+  const root: TreeNode = { name: '', isDirectory: true, children: [], path: rootDir };
+  const dirs = new Map<string, TreeNode>([['', root]]);
+  const seenFiles = new Set<string>();
+
+  for (const filePath of filePaths) {
+    const rel = path.relative(rootDir, filePath).replace(/\\/g, '/');
+    if (!rel || seenFiles.has(rel)) {
+      continue; // outside/equal to the root, or already added
+    }
+    seenFiles.add(rel);
+
+    const segments = rel.split('/');
+    const fileName = segments.pop() as string;
+
+    // Walk down the chain, creating the directory nodes that do not exist yet.
+    let parent = root;
+    let key = '';
+    for (const segment of segments) {
+      key = key ? `${key}/${segment}` : segment;
+      let node = dirs.get(key);
+      if (!node) {
+        node = {
+          name: segment,
+          isDirectory: true,
+          children: [],
+          path: path.join(rootDir, ...key.split('/')),
+        };
+        dirs.set(key, node);
+        parent.children.push(node);
+      }
+      parent = node;
+    }
+
+    parent.children.push({
+      name: fileName,
+      isDirectory: false,
+      children: [],
+      path: path.join(rootDir, ...rel.split('/')),
+    });
+  }
+
+  sortNodes(root.children);
+  return root.children;
+}
+
+/** Sorts a tree in place the same way {@link buildTree} orders a directory. */
+function sortNodes(nodes: TreeNode[]): void {
+  nodes.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) {
+      return a.isDirectory ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'accent' });
+  });
+  for (const node of nodes) {
+    if (node.isDirectory) {
+      sortNodes(node.children);
+    }
+  }
+}
+
+/**
  * Options for rendering a tree to text.
  */
 export interface RenderTreeOptions {

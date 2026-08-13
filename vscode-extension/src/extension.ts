@@ -10,8 +10,7 @@ import { createGitignorePredicate, IgnorePredicate } from './gitignore';
 // Import from the CLI-free core modules so the bundle never pulls in the
 // `scanner.ts`/`tree.ts` CLI entry points (shebang / `require.main` guard).
 import { scanSelectionToString, copySelectionToDir } from '../../src/scan-core';
-import { buildTree, renderTree, resolveRootName, TreeNode } from '../../src/tree-core';
-import { DEFAULT_IGNORE } from '../../src/blacklist';
+import { buildTreeFromPaths, renderTree, resolveRootName } from '../../src/tree-core';
 
 export function activate(context: vscode.ExtensionContext): void {
   const selection = new SelectionModel(context);
@@ -246,11 +245,7 @@ export function activate(context: vscode.ExtensionContext): void {
       copyFilesForOneDrive(selection)
     ),
 
-    vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton()),
-
-    vscode.commands.registerCommand('projectContext.configureSkeletonExcludes', () =>
-      configureSkeletonExcludes()
-    ),
+    vscode.commands.registerCommand('projectContext.copySkeleton', () => copySkeleton(selection)),
 
     vscode.commands.registerCommand('projectContext.setMaxChars', () => setMaxChars()),
 
@@ -271,7 +266,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
 
     vscode.commands.registerCommand('projectContext.skeletonHere', (uri?: vscode.Uri) =>
-      skeletonHere(uri)
+      skeletonHere(uri, selection)
     )
   );
 
@@ -578,14 +573,31 @@ async function selectByPaths(selection: SelectionModel): Promise<void> {
   }
 }
 
-/** Renders the project skeleton of the first workspace folder. */
-async function copySkeleton(): Promise<void> {
+/**
+ * Renders the skeleton of the current selection: every folder holding a ticked
+ * file (plus the ancestors linking it to the workspace root) and the ticked
+ * files themselves. Folders without a single ticked file are left out.
+ */
+async function copySkeleton(selection: SelectionModel): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   if (!folders || folders.length === 0) {
     vscode.window.showWarningMessage('Context Picker: open a folder first.');
     return;
   }
-  await deliverSkeleton(folders[0].uri.fsPath);
+
+  const isIgnored = await buildIgnorePredicate();
+  const files: string[] = [];
+  for (const folder of folders) {
+    await collectSelectedFiles(folder.uri.fsPath, selection, files, isIgnored);
+  }
+  if (files.length === 0) {
+    vscode.window.showInformationMessage(
+      'Context Picker: no files selected yet — the skeleton follows your ticked files.'
+    );
+    return;
+  }
+
+  await deliverSkeleton(folders[0].uri.fsPath, files);
 }
 
 /** Explorer quick action: output the contents of the clicked file/folder. */
@@ -606,118 +618,32 @@ async function copyContentsHere(uri?: vscode.Uri): Promise<void> {
   await scanFilesToOutput(rootDir, files);
 }
 
-/** Explorer quick action: output the skeleton rooted at the clicked folder. */
-async function skeletonHere(uri?: vscode.Uri): Promise<void> {
+/**
+ * Explorer quick action: the skeleton of the ticked files under the clicked
+ * folder, rooted at that folder.
+ */
+async function skeletonHere(uri: vscode.Uri | undefined, selection: SelectionModel): Promise<void> {
   if (!uri) {
     vscode.window.showWarningMessage('Context Picker: right-click a folder in the Explorer.');
     return;
   }
-  await deliverSkeleton(uri.fsPath);
+  const isIgnored = await buildIgnorePredicate();
+  const files: string[] = [];
+  await collectSelectedFiles(uri.fsPath, selection, files, isIgnored);
+  if (files.length === 0) {
+    vscode.window.showInformationMessage(
+      'Context Picker: no ticked files under this folder — the skeleton follows your selection.'
+    );
+    return;
+  }
+  await deliverSkeleton(uri.fsPath, files);
 }
 
-async function deliverSkeleton(dir: string): Promise<void> {
-  const isIgnored = await buildIgnorePredicate();
-  // The complete list of folder names to omit from the skeleton, editable via
-  // the "Configure Skeleton Excludes" command. Matched at any depth.
-  const excludes = vscode.workspace
-    .getConfiguration('projectContext')
-    .get<string[]>('skeletonExcludeFolders', [...DEFAULT_IGNORE]);
-  const children = await buildTree(dir, dir, { blacklist: excludes, isIgnored });
+/** Builds the skeleton of `files` relative to `dir` and sends it to the output. */
+async function deliverSkeleton(dir: string, files: string[]): Promise<void> {
+  const children = buildTreeFromPaths(dir, files);
   const tree = { name: resolveRootName(dir), isDirectory: true, children };
   await deliver(renderTree(tree));
-}
-
-/**
- * Lets the user tick which folders are omitted from Copy Skeleton. Candidates
- * are the defaults plus the actual top-level folders of the workspace; the
- * chosen set is saved to the projectContext.skeletonExcludeFolders setting
- * (workspace scope when a folder is open, so a team shares it).
- */
-async function configureSkeletonExcludes(): Promise<void> {
-  const cfg = vscode.workspace.getConfiguration('projectContext');
-  const current = cfg.get<string[]>('skeletonExcludeFolders', [...DEFAULT_IGNORE]);
-
-  // Candidates: the defaults + the current setting + every folder in the project
-  // (at any depth, as a relative path), so nested folders can be picked too.
-  // Root-only by default (the original behaviour); when the setting is on, also
-  // list every nested folder (as a relative path) so they can be picked too.
-  const includeNested = cfg.get<boolean>('skeletonExcludesIncludeNested', false);
-  const candidates = new Set<string>([...DEFAULT_IGNORE, ...current]);
-  const isIgnored = await buildIgnorePredicate();
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    try {
-      const nodes = await buildTree(folder.uri.fsPath, folder.uri.fsPath, {
-        blacklist: [...DEFAULT_IGNORE],
-        isIgnored,
-        ...(includeNested ? {} : { maxDepth: 1 }),
-      });
-      if (includeNested) {
-        collectDirRelPaths(nodes, folder.uri.fsPath, candidates);
-      } else {
-        for (const node of nodes) {
-          if (node.isDirectory) {
-            candidates.add(node.name);
-          }
-        }
-      }
-    } catch {
-      // Unreadable workspace root — ignore.
-    }
-  }
-
-  const items: vscode.QuickPickItem[] = [...candidates]
-    .sort((a, b) => a.localeCompare(b))
-    .map((name) => ({ label: name }));
-
-  const target = vscode.workspace.workspaceFolders?.length
-    ? vscode.ConfigurationTarget.Workspace
-    : vscode.ConfigurationTarget.Global;
-
-  // Use the live QuickPick API so every tick/untick is saved immediately — the
-  // choice then survives even if the picker is dismissed (Esc / click away)
-  // without pressing OK.
-  const qp = vscode.window.createQuickPick();
-  qp.title = includeNested
-    ? 'Copy Skeleton — folders to exclude (root + nested)'
-    : 'Copy Skeleton — folders to exclude (root only — enable nested in settings)';
-  qp.placeholder = 'Tick folders to OMIT — saved automatically (Esc to close)';
-  qp.canSelectMany = true;
-  qp.ignoreFocusOut = true;
-  qp.items = items;
-  // Pre-tick the current excludes BEFORE wiring the handler, so this initial
-  // state does not trigger a redundant save.
-  qp.selectedItems = items.filter((i) => current.includes(i.label));
-
-  qp.onDidChangeSelection((selection) => {
-    void cfg.update(
-      'skeletonExcludeFolders',
-      selection.map((s) => s.label),
-      target
-    );
-  });
-  qp.onDidAccept(() => qp.hide());
-  qp.onDidHide(() => {
-    const count = qp.selectedItems.length;
-    qp.dispose();
-    vscode.window.setStatusBarMessage(
-      `Context Picker: ${count} folder(s) excluded from the skeleton.`,
-      4000
-    );
-  });
-  qp.show();
-}
-
-/** Collects the relative paths of every directory in the tree (recursively). */
-function collectDirRelPaths(nodes: TreeNode[], root: string, into: Set<string>): void {
-  for (const node of nodes) {
-    if (node.isDirectory && node.path) {
-      const rel = path.relative(root, node.path).replace(/\\/g, '/');
-      if (rel) {
-        into.add(rel);
-      }
-      collectDirRelPaths(node.children, root, into);
-    }
-  }
 }
 
 /**

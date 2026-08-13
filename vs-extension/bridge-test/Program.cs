@@ -29,10 +29,10 @@ internal static class Program
             int fileCount = entries.Count(l => l.StartsWith("F\t"));
             Console.WriteLine($"[tree] {entries.Length} entries ({dirCount} dirs, {fileCount} files)");
 
-            // 2) skeleton mode -> text
-            string skeleton = await NodeBridge.SkeletonAsync("node", script, root, respectGitignore: true);
+            // 2) skeleton mode -> the tree of the given files (empty list -> root only)
+            string skeleton = await NodeBridge.SkeletonAsync("node", script, root, files);
             string[] lines = skeleton.Split('\n');
-            Console.WriteLine($"[skeleton] {lines.Length} lines, root line='{lines[0]}'");
+            Console.WriteLine($"[skeleton] {lines.Length} lines for {files.Length} file(s), root line='{lines[0]}'");
 
             // 3) scan mode -> formatted contents
             if (files.Length > 0)

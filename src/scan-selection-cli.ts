@@ -8,14 +8,14 @@
  *     { mode, rootDir, includedFiles[], includeEnvFiles, stripComments, removeBlankLines }
  *   mode "tree"     -> JSON listing of the workspace for a checkbox UI
  *     { mode, rootDir, respectGitignore }
- *   mode "skeleton" -> the project skeleton (tree) as text
- *     { mode, rootDir, respectGitignore }
+ *   mode "skeleton" -> the skeleton (tree) of the selected files, as text
+ *     { mode, rootDir, includedFiles[] }
  *
  * Usage:  echo <json> | node scan-selection.js      |      node scan-selection.js request.json
  */
 import * as fs from 'fs';
 import { scanSelectionToString, copySelectionToDir } from './scan-core';
-import { buildTree, renderTree, resolveRootName, TreeNode } from './tree-core';
+import { buildTree, buildTreeFromPaths, renderTree, resolveRootName, TreeNode } from './tree-core';
 import { DEFAULT_IGNORE } from './blacklist';
 import { createGitignorePredicate } from './gitignore';
 
@@ -37,8 +37,6 @@ interface Request {
   separator?: string;
   /** copyfiles mode only: mirror the target (write only changed, delete stale) instead of wiping it. */
   syncOnly?: boolean;
-  /** skeleton mode only: explicit folder-name excludes (overrides DEFAULT_IGNORE). */
-  excludeFolders?: string[];
 }
 
 async function readStdin(): Promise<string> {
@@ -120,26 +118,27 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     return;
   }
 
-  // tree / skeleton both walk the directory honouring .gitignore. The tree keeps
-  // the default ignores so the checkbox view stays clean; the skeleton may be
-  // given an explicit folder-exclude list by the host (see excludeFolders).
-  const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
-  const blacklist =
-    mode === 'skeleton' && Array.isArray(req.excludeFolders)
-      ? req.excludeFolders
-      : [...DEFAULT_IGNORE];
-  const children = await buildTree(rootDir, rootDir, { blacklist, isIgnored });
-
-  if (mode === 'tree') {
-    const lines: string[] = [];
-    flattenTree(children, lines);
-    process.stdout.write(lines.join('\n'));
+  if (mode === 'skeleton') {
+    // The skeleton mirrors the selection: only the folders holding one of the
+    // given files (plus their ancestors) are listed. No walk, no excludes — the
+    // host's file list has already been filtered.
+    const children = buildTreeFromPaths(rootDir, req.includedFiles ?? []);
+    const root: TreeNode = { name: resolveRootName(rootDir), isDirectory: true, children };
+    process.stdout.write(renderTree(root));
     return;
   }
 
-  if (mode === 'skeleton') {
-    const root: TreeNode = { name: resolveRootName(rootDir), isDirectory: true, children };
-    process.stdout.write(renderTree(root));
+  if (mode === 'tree') {
+    // The checkbox view walks the workspace, honouring .gitignore and the
+    // default ignores so it stays clean.
+    const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
+    const children = await buildTree(rootDir, rootDir, {
+      blacklist: [...DEFAULT_IGNORE],
+      isIgnored,
+    });
+    const lines: string[] = [];
+    flattenTree(children, lines);
+    process.stdout.write(lines.join('\n'));
     return;
   }
 

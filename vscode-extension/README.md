@@ -40,10 +40,11 @@ It can even collect the files into a folder for drag-and-drop upload.
   shows everything flat, so this keeps the original folder structure in the name.
   It **syncs**: only new/changed files are written and deselected ones removed, so
   OneDrive re-uploads just what actually changed.
-- **Copy Project Skeleton** — outputs just the directory tree, with your project
-  name as the root.
-  - **Configure Skeleton Excludes** ⚙ — tick which folders to omit from the
-    skeleton (any depth); the choice is saved per-workspace.
+- **Copy Project Skeleton** — outputs the directory tree **of your selection**,
+  with your project name as the root: every folder that holds a ticked file (plus
+  the parent folders linking it to the root) and the ticked files themselves.
+  Folders without a single ticked file are left out, so the tree stays as small as
+  the context you are actually sending.
 - **Live size counter** — the footer shows how many files are selected and the
   exact **lines** and **characters** the output will be (honouring the transforms
   below), so you know if it fits your LLM's context. Set **Max Characters** to get
@@ -57,7 +58,8 @@ It can even collect the files into a folder for drag-and-drop upload.
 - **`.env` toggle** 🔒 — a lock/unlock button. `.env` contents are **excluded by
   default** (to protect secrets) and skipped from copies; turn it on to include them.
 - **Explorer quick actions** — right-click any file/folder to *Copy Contents
-  (with subfolders)* or *Copy Skeleton From Here* without opening the panel.
+  (with subfolders)*, or a folder for *Copy Skeleton From Here* (the ticked files
+  under it, rooted at that folder), without opening the panel.
 - Your selection is **remembered** between sessions.
 
 ## How to use
@@ -68,6 +70,7 @@ It can even collect the files into a folder for drag-and-drop upload.
    `.gitignore`, `.env`); the footer shows the resulting size (lines / chars).
 4. Output it:
    - **Generate Contents** — one text block (editor / clipboard / file).
+   - **Copy Project Skeleton** 🌲 — the tree of the folders your ticked files live in.
    - **Copy Files to Folder** 🗎 — the real files in a temp folder to drag into a chat.
    - **Copy Files for OneDrive** ☁ — path-named `.txt` copies on the Desktop to upload.
 
@@ -85,8 +88,6 @@ It can even collect the files into a folder for drag-and-drop upload.
 | `projectContext.respectGitignore` | `true` | Hide files/folders matched by the workspace `.gitignore` |
 | `projectContext.includeEnvFiles` | `false` | Work with `.env` files (off skips their content **and** copies, to protect secrets; toggle via the lock button) |
 | `projectContext.maxChars` | `0` | Warn in the footer when the output exceeds this many characters (0 = off) |
-| `projectContext.skeletonExcludeFolders` | `node_modules, .git, bin, obj, .vs` | Folders omitted from Copy Skeleton (edit via the gear button) |
-| `projectContext.skeletonExcludesIncludeNested` | `false` | In *Configure Skeleton Excludes*, also list nested sub-folders (off = root only) |
 | `projectContext.copyAsTxt` | `false` | Append `.txt` to files in *Copy Files to Folder* (for Microsoft 365 Copilot) |
 
 Most actions also have a one-click button in the panel's title bar (some under the

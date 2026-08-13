@@ -145,9 +145,23 @@ npm run tree -- --dir "C:\projects\my-project" --output tree.txt
 ## Editor extensions
 
 Both editors get the same **Context Picker** UI: a checkbox tree of your project where
-you tick files/folders, then copy their **contents** or a **project skeleton** — with
-toggles for *strip comments*, *remove blank lines* and *respect `.gitignore`*. Both
-extensions reuse the same TypeScript core, so the output matches the CLI.
+you tick files/folders, then copy their **contents** or a **skeleton of the selection**
+— with toggles for *strip comments*, *remove blank lines* and *respect `.gitignore`*.
+Both extensions reuse the same TypeScript core, so the output matches the CLI.
+
+The skeleton follows your ticks: every folder that contains a ticked file goes in
+(together with the parent folders linking it to the project root), along with the
+ticked files themselves. Folders without a single ticked file are left out — pick
+five files and you get a five-file tree, not the whole project.
+
+```
+my-project
+├── src/
+│   ├── lib/
+│   │   └── app.ts        <- ticked
+│   └── scanner.ts        <- ticked
+└── README.md             <- ticked
+```
 
 | Editor | Source folder | Reuses the core via |
 | --- | --- | --- |
@@ -176,7 +190,8 @@ needed.)
 
 After installing, the **Context Picker** icon appears in the **Activity Bar** (left). Open
 a folder, tick files in the tree, then run **Generate Contents** or **Copy Project
-Skeleton** (also available via right-click in the Explorer → **Add to Context Picker**).
+Skeleton** (both work off the ticked files; also available via right-click in the
+Explorer → **Add to Context Picker**).
 
 ### Visual Studio extension
 
@@ -237,6 +252,7 @@ Everything is exported from the package, so you can use it from your own code in
 import {
   runScan,
   buildProjectTree,
+  buildTreeFromPaths,
   renderTree,
   isBlacklisted,
 } from 'directory-scanner';
@@ -261,6 +277,14 @@ const root = await buildProjectTree({
   help: false,
 });
 console.log(renderTree(root));
+
+// Or build the tree of an explicit set of files (what the extensions'
+// "Copy Skeleton" does): only the folders holding one of them appear.
+const children = buildTreeFromPaths('/path/to/project', [
+  '/path/to/project/src/app.ts',
+  '/path/to/project/README.md',
+]);
+console.log(renderTree({ name: 'project', isDirectory: true, children }));
 ```
 
 ---

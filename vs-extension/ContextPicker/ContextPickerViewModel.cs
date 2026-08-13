@@ -27,14 +27,11 @@ namespace ContextPicker
             RefreshCommand = new RelayCommand(() => RunSafe(ReloadAsync));
             ClearFilterCommand = new RelayCommand(() => { SearchText = string.Empty; });
             CheckShownCommand = new RelayCommand(CheckShown);
-            AddExcludeCommand = new RelayCommand(AddExclude);
             CopyFilesCommand = new RelayCommand(() => RunSafe(CopyFilesAsync));
             CopyToDesktopCommand = new RelayCommand(() => RunSafe(CopyToDesktopAsync));
             SavePresetCommand = new RelayCommand(SavePreset);
             LoadPresetCommand = new RelayCommand(LoadPreset);
             DeletePresetCommand = new RelayCommand(DeletePreset);
-            LoadShowNestedExcludes();
-            LoadSkeletonExcludes();
             LoadMaxChars();
             LoadCopyAsTxt();
 
@@ -49,7 +46,6 @@ namespace ContextPicker
         public ICommand RefreshCommand { get; private set; }
         public ICommand ClearFilterCommand { get; private set; }
         public ICommand CheckShownCommand { get; private set; }
-        public ICommand AddExcludeCommand { get; private set; }
         public ICommand CopyFilesCommand { get; private set; }
         public ICommand CopyToDesktopCommand { get; private set; }
         public ICommand SavePresetCommand { get; private set; }
@@ -71,16 +67,6 @@ namespace ContextPicker
         {
             get { return _newPresetName; }
             set { _newPresetName = value; OnPropertyChanged("NewPresetName"); }
-        }
-
-        /// <summary>Folders the user can omit from Copy Skeleton (ticked = omitted).</summary>
-        public ObservableCollection<SkeletonExcludeItem> SkeletonExcludes { get; } = new ObservableCollection<SkeletonExcludeItem>();
-
-        private string _newExcludeFolder = string.Empty;
-        public string NewExcludeFolder
-        {
-            get { return _newExcludeFolder; }
-            set { _newExcludeFolder = value; OnPropertyChanged("NewExcludeFolder"); }
         }
 
         private bool _stripComments;
@@ -109,22 +95,6 @@ namespace ContextPicker
         {
             get { return _copyAsTxt; }
             set { if (_copyAsTxt == value) return; _copyAsTxt = value; OnPropertyChanged("CopyAsTxt"); SaveCopyAsTxt(); }
-        }
-
-        // Configure Skeleton Excludes: show only root folders (false, default) or
-        // also nested sub-folders (true).
-        private bool _showNestedExcludes;
-        public bool ShowNestedExcludes
-        {
-            get { return _showNestedExcludes; }
-            set
-            {
-                if (_showNestedExcludes == value) return;
-                _showNestedExcludes = value;
-                OnPropertyChanged("ShowNestedExcludes");
-                SaveShowNestedExcludes();
-                RebuildSkeletonExcludes();
-            }
         }
 
         // --- Live size counter (lines/chars of what Generate would produce) ---
@@ -217,7 +187,6 @@ namespace ContextPicker
             RootNodes.Clear();
             RootNodes.Add(root);
             SubscribeToNodes(root); // so the live counter reacts to ticking
-            RebuildSkeletonExcludes(); // now include this project's folders (any depth)
             RefreshPresetNames();
             ApplyFilter(); // honour any active filter + open the root
             Status = "Ready. Tick files/folders, then Generate.";
@@ -256,6 +225,11 @@ namespace ContextPicker
             Status = "Generated " + files.Count + " file(s) (" + text.Length + " chars) — opened in editor.";
         }
 
+        /// <summary>
+        /// Builds the skeleton of the current selection: every folder holding a
+        /// ticked file (plus the ancestors linking it to the root) and the ticked
+        /// files themselves. Folders without a ticked file are left out.
+        /// </summary>
         private async Task SkeletonAsync()
         {
             if (string.IsNullOrEmpty(_workspaceRoot))
@@ -263,11 +237,21 @@ namespace ContextPicker
                 Status = "Nothing loaded. Click Refresh first.";
                 return;
             }
+            var files = new List<string>();
+            foreach (FileNode root in RootNodes)
+            {
+                root.CollectCheckedFiles(files);
+            }
+            if (files.Count == 0)
+            {
+                Status = "No files selected — the skeleton follows your ticked files.";
+                return;
+            }
+
             Status = "Building skeleton...";
-            var excludes = new List<string>(_persistedExcludes);
-            string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, RespectGitignore, excludes.ToArray());
+            string text = await NodeBridge.SkeletonAsync(_nodeExe, _scriptPath, _workspaceRoot, files.ToArray());
             ShowOutput(text);
-            Status = "Skeleton opened in editor (excluded " + excludes.Count + " folder name(s)).";
+            Status = "Skeleton of " + files.Count + " selected file(s) opened in editor.";
         }
 
         /// <summary>
@@ -715,140 +699,6 @@ namespace ContextPicker
             catch { }
         }
 
-        private static string ShowNestedExcludesFilePath()
-        {
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ContextPicker");
-            return Path.Combine(dir, "show-nested-excludes.txt");
-        }
-
-        private void LoadShowNestedExcludes()
-        {
-            try
-            {
-                string file = ShowNestedExcludesFilePath();
-                if (File.Exists(file))
-                {
-                    _showNestedExcludes = File.ReadAllText(file).Trim() == "1";
-                }
-            }
-            catch { }
-        }
-
-        private void SaveShowNestedExcludes()
-        {
-            try
-            {
-                string file = ShowNestedExcludesFilePath();
-                Directory.CreateDirectory(Path.GetDirectoryName(file));
-                File.WriteAllText(file, _showNestedExcludes ? "1" : "0");
-            }
-            catch { }
-        }
-
-        // --- Skeleton excludes: defaults + every project folder (any depth), persisted ---
-
-        private static readonly string[] DefaultExcludes = { "node_modules", ".git", "bin", "obj", ".vs" };
-
-        // The set of folder names / relative paths to omit from Copy Skeleton (source of truth).
-        private HashSet<string> _persistedExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        private void AddExclude()
-        {
-            string name = (NewExcludeFolder ?? string.Empty).Trim().Replace('\\', '/');
-            if (name.Length == 0) return;
-            _persistedExcludes.Add(name);
-            NewExcludeFolder = string.Empty;
-            SaveSkeletonExcludes();
-            RebuildSkeletonExcludes();
-        }
-
-        private void OnExcludeItemChanged(object sender, PropertyChangedEventArgs e)
-        {
-            var item = sender as SkeletonExcludeItem;
-            if (item == null) return;
-            if (item.IsExcluded) _persistedExcludes.Add(item.Name);
-            else _persistedExcludes.Remove(item.Name);
-            SaveSkeletonExcludes();
-        }
-
-        /// <summary>
-        /// Rebuilds the visible exclude list = the defaults + every folder in the
-        /// loaded tree (at any depth, as a relative path) + any persisted custom
-        /// entries. The ticked state comes from the persisted set.
-        /// </summary>
-        private void RebuildSkeletonExcludes()
-        {
-            foreach (SkeletonExcludeItem old in SkeletonExcludes)
-            {
-                old.PropertyChanged -= OnExcludeItemChanged;
-            }
-            SkeletonExcludes.Clear();
-
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var ordered = new List<string>();
-            foreach (string d in DefaultExcludes)
-            {
-                if (seen.Add(d)) ordered.Add(d);
-            }
-            if (!string.IsNullOrEmpty(_workspaceRoot))
-            {
-                var folders = new List<string>();
-                if (_showNestedExcludes)
-                {
-                    foreach (FileNode root in RootNodes)
-                    {
-                        CollectFolderRelPaths(root, folders);
-                    }
-                }
-                else
-                {
-                    // root-only: just the top-level folders (their name == relative path)
-                    foreach (FileNode root in RootNodes)
-                    {
-                        foreach (FileNode child in root.Children)
-                        {
-                            if (child.IsDirectory)
-                            {
-                                string rel = ToRelative(_workspaceRoot, child.FullPath);
-                                if (!string.IsNullOrEmpty(rel)) folders.Add(rel);
-                            }
-                        }
-                    }
-                }
-                folders.Sort(StringComparer.OrdinalIgnoreCase);
-                foreach (string f in folders)
-                {
-                    if (seen.Add(f)) ordered.Add(f);
-                }
-            }
-            foreach (string p in _persistedExcludes)
-            {
-                if (seen.Add(p)) ordered.Add(p);
-            }
-
-            foreach (string name in ordered)
-            {
-                var item = new SkeletonExcludeItem { Name = name, IsExcluded = _persistedExcludes.Contains(name) };
-                item.PropertyChanged += OnExcludeItemChanged;
-                SkeletonExcludes.Add(item);
-            }
-        }
-
-        private void CollectFolderRelPaths(FileNode node, List<string> into)
-        {
-            if (node.IsDirectory)
-            {
-                string rel = ToRelative(_workspaceRoot, node.FullPath);
-                if (!string.IsNullOrEmpty(rel)) into.Add(rel);
-            }
-            foreach (FileNode child in node.Children)
-            {
-                CollectFolderRelPaths(child, into);
-            }
-        }
-
         private static string ToRelative(string root, string full)
         {
             if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(full)) return string.Empty;
@@ -858,66 +708,6 @@ namespace ContextPicker
                 return full.Substring(r.Length).TrimStart('\\', '/').Replace('\\', '/');
             }
             return full.Replace('\\', '/');
-        }
-
-        private void LoadSkeletonExcludes()
-        {
-            _persistedExcludes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            bool any = false;
-            try
-            {
-                string file = ExcludesFilePath();
-                if (File.Exists(file))
-                {
-                    foreach (string raw in File.ReadAllLines(file))
-                    {
-                        string line = raw.Trim();
-                        if (line.Length == 0) continue;
-                        any = true;
-                        int tab = line.IndexOf('\t');
-                        if (tab >= 0)
-                        {
-                            // legacy "1\tname" / "0\tname" -> keep only the excluded ones
-                            if (line.Substring(0, tab) == "1")
-                            {
-                                string nm = line.Substring(tab + 1).Trim();
-                                if (nm.Length > 0) _persistedExcludes.Add(nm);
-                            }
-                        }
-                        else
-                        {
-                            _persistedExcludes.Add(line);
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            if (!any)
-            {
-                foreach (string d in DefaultExcludes) _persistedExcludes.Add(d);
-            }
-
-            RebuildSkeletonExcludes();
-        }
-
-        private void SaveSkeletonExcludes()
-        {
-            try
-            {
-                string file = ExcludesFilePath();
-                Directory.CreateDirectory(Path.GetDirectoryName(file));
-                File.WriteAllLines(file, _persistedExcludes);
-            }
-            catch { }
-        }
-
-        private static string ExcludesFilePath()
-        {
-            string dir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ContextPicker");
-            return Path.Combine(dir, "skeleton-excludes.tsv");
         }
 
         private static void ShowOutput(string text)
@@ -1002,29 +792,5 @@ namespace ContextPicker
                 handler(this, new PropertyChangedEventArgs(name));
             }
         }
-    }
-
-    /// <summary>One folder name in the Copy Skeleton exclude list (ticked = omitted).</summary>
-    public sealed class SkeletonExcludeItem : INotifyPropertyChanged
-    {
-        public string Name { get; set; }
-
-        private bool _isExcluded = true;
-        public bool IsExcluded
-        {
-            get { return _isExcluded; }
-            set
-            {
-                if (_isExcluded == value) return;
-                _isExcluded = value;
-                PropertyChangedEventHandler handler = PropertyChanged;
-                if (handler != null)
-                {
-                    handler(this, new PropertyChangedEventArgs("IsExcluded"));
-                }
-            }
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
     }
 }

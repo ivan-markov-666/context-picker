@@ -14,7 +14,8 @@
                 ToolTip="Copy selected files into one folder and open it (drag them into your chat)."/>
             <Button Content="For OneDrive" Command="{Binding CopyToDesktopCommand}" Margin="2" Padding="8,2"
                 ToolTip="Copy selected files to Desktop\ContextPicker, renamed with their relative path + .txt (e.g. src__lib__app.cs.txt), for uploading to OneDrive."/>
-            <Button Content="Copy Skeleton" Command="{Binding SkeletonCommand}" Margin="2" Padding="8,2"/>
+            <Button Content="Copy Skeleton" Command="{Binding SkeletonCommand}" Margin="2" Padding="8,2"
+                ToolTip="Copy the tree of the selected files: only the folders that contain a ticked file (plus their parents)."/>
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="2" Padding="8,2"/>
         </WrapPanel>
         <WrapPanel DockPanel.Dock="Top" Margin="6,0,6,4">
@@ -31,33 +32,6 @@
                 ToolTip="When using 'Copy Files', append .txt to each file (app.cs -> app.cs.txt) for uploaders that block code extensions."
                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
         </WrapPanel>
-        <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
-            Header="Copy Skeleton — folders to exclude (ticked = omitted)"
-            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
-            <StackPanel Margin="14,2,0,0">
-                <CheckBox Content="Show sub-folders" IsChecked="{Binding ShowNestedExcludes}" Margin="0,0,0,4"
-                    ToolTip="Off = only top-level folders. On = also list nested sub-folders."
-                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding SkeletonExcludes}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsExcluded, Mode=TwoWay}" Margin="0,1"
-                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-                <DockPanel Margin="0,4,0,0">
-                    <Button DockPanel.Dock="Right" Content="Add" Command="{Binding AddExcludeCommand}" Margin="4,0,0,0" Padding="6,1"/>
-                    <TextBox Text="{Binding NewExcludeFolder, UpdateSourceTrigger=PropertyChanged}">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Return" Command="{Binding AddExcludeCommand}"/>
-                        </TextBox.InputBindings>
-                    </TextBox>
-                </DockPanel>
-            </StackPanel>
-        </Expander>
         <Expander DockPanel.Dock="Top" Margin="6,0,6,4"
             Header="Presets (saved selections)"
             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">

@@ -109,14 +109,15 @@ Behaviour:
 ### 3.2 Title-bar actions (on the view)
 - **Generate contents** → reads selected files via the core and opens the result in a **new
   editor tab** (an untitled document) for review (the chosen default output, see §4.3).
-- **Copy skeleton** → renders the tree of the selection (or whole project) into a new editor tab.
+- **Copy skeleton** → renders the tree **of the selection** into a new editor tab: only the
+  folders holding a ticked file (plus their ancestors) and the ticked files (see §11.4).
 - **Refresh**, **Select all**, **Clear selection**.
 
 ### 3.3 Explorer right-click (secondary, fast path)
 On the native File Explorer (`explorer/context` menu):
 - **Add to Project Context** / **Remove from Project Context** (updates the checkbox model).
 - **Copy contents (with subfolders)** — immediate scan of the clicked file/folder.
-- **Copy skeleton from here** — tree rooted at the clicked folder.
+- **Copy skeleton from here** — the ticked files under the clicked folder, rooted there.
 
 This covers "I just want this one class/folder, fast" without opening the panel.
 
@@ -336,6 +337,9 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
      like the license-comment issue, headless, no Electron download).
    - Remaining (optional): full UI-level end-to-end tests with `@vscode/test-electron`
      (drives a real VS Code window — heavier; the smoke test already covers activation).
+   - ✅ **Skeleton follows the selection** (see §11.4): "Copy Project Skeleton" and
+     "Copy Skeleton From Here" now render `buildTreeFromPaths(root, selectedFiles)`
+     instead of walking the workspace, and the folder-exclude configuration is gone.
 4. **M4 — Publish:** marketplace assets, publisher + PAT, `vsce publish` (+ Open VSX).
 
 ---
@@ -356,3 +360,14 @@ injected `FileSystem` interface so a `vscode.workspace.fs`-backed reader can be 
    `displayName: "Context Picker"`, package `name: "context-picker"`; the internal command/config
    prefix stays `projectContext` (invisible to users, avoids a risky mass-rename). Final id is
    `<publisher>.context-picker`.
+4. **Skeleton → derived from the selection, not from a walk.** The skeleton lists the folders
+   that hold a ticked file, the ancestors linking them to the root, and the ticked files
+   themselves; everything else is left out. Built by `buildTreeFromPaths(root, files)` in
+   `tree-core.ts` from the very list `collectSelectedFiles` produces, so the skeleton and
+   "Generate Contents" can never disagree about what is in scope. This replaced the old
+   "walk the project, minus a folder-exclude list" behaviour: the exclude list (the
+   `Configure Skeleton Excludes…` command, the `skeletonExcludeFolders` /
+   `skeletonExcludesIncludeNested` settings, and the VS tool window's exclude panel) is
+   gone — with the tree following the ticks, there is nothing left to exclude. The bridge's
+   `skeleton` mode therefore takes `includedFiles` and no longer walks the disk or reads
+   `.gitignore` (the host's file list has already been filtered).

@@ -8,6 +8,7 @@ import { buildTree, renderTree, countTree, resolveRootName, TreeNode } from './t
 // (the library API and tests) keep working unchanged.
 export {
   buildTree,
+  buildTreeFromPaths,
   renderTree,
   countTree,
   resolveRootName,

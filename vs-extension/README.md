@@ -31,8 +31,9 @@ Open a solution, then **Tools → ContextPickerToolWindow**. In the panel:
   encoded in each name + `.txt` (e.g. `src__lib__app.cs.txt`), ready to upload to
   OneDrive (which shows everything flat). It **syncs** — only new/changed files
   are written and deselected ones removed, so OneDrive re-uploads just what changed.
-- **Copy Skeleton** — the project tree as text; the *“folders to exclude”* panel
-  chooses which folders to omit (root-only or, with the checkbox, nested too).
+- **Copy Skeleton** — the tree of the **selected** files as text: every folder
+  holding a ticked file (plus the parents linking it to the root) and the ticked
+  files themselves. Folders without a ticked file are left out.
 - A footer shows the live **line / character** count and an optional **Max chars** limit.
 
 > Requires **Node.js on PATH** (the extension shells out to `node`).
@@ -73,7 +74,7 @@ Visual Studio (C#)                          directory-scanner core (TypeScript)
 ```
 
 The bridge has three modes: `scan` (files → contents), `tree` (root → flat
-listing for the checkbox tree), `skeleton` (root → project skeleton). All the
+listing for the checkbox tree), `skeleton` (selected files → their tree). All the
 real work runs in the already-tested JS core; C# stays thin (UI + process calls).
 
 ## Build & run (developer)

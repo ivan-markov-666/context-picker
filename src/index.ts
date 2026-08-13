@@ -29,6 +29,7 @@ export type {
 // Tree
 export {
   buildTree,
+  buildTreeFromPaths,
   buildProjectTree,
   renderTree,
   countTree,

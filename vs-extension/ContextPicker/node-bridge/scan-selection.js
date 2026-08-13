@@ -4599,6 +4599,58 @@ async function buildTree(dirPath, basePath, options = {}, depth = 1) {
   }
   return nodes;
 }
+function buildTreeFromPaths(rootDir, filePaths) {
+  const root = { name: "", isDirectory: true, children: [], path: rootDir };
+  const dirs = /* @__PURE__ */ new Map([["", root]]);
+  const seenFiles = /* @__PURE__ */ new Set();
+  for (const filePath of filePaths) {
+    const rel = path3.relative(rootDir, filePath).replace(/\\/g, "/");
+    if (!rel || seenFiles.has(rel)) {
+      continue;
+    }
+    seenFiles.add(rel);
+    const segments = rel.split("/");
+    const fileName = segments.pop();
+    let parent = root;
+    let key = "";
+    for (const segment of segments) {
+      key = key ? `${key}/${segment}` : segment;
+      let node = dirs.get(key);
+      if (!node) {
+        node = {
+          name: segment,
+          isDirectory: true,
+          children: [],
+          path: path3.join(rootDir, ...key.split("/"))
+        };
+        dirs.set(key, node);
+        parent.children.push(node);
+      }
+      parent = node;
+    }
+    parent.children.push({
+      name: fileName,
+      isDirectory: false,
+      children: [],
+      path: path3.join(rootDir, ...rel.split("/"))
+    });
+  }
+  sortNodes(root.children);
+  return root.children;
+}
+function sortNodes(nodes) {
+  nodes.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) {
+      return a.isDirectory ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name, void 0, { sensitivity: "accent" });
+  });
+  for (const node of nodes) {
+    if (node.isDirectory) {
+      sortNodes(node.children);
+    }
+  }
+}
 function renderTree(root, options = {}) {
   const { dirSuffix = "/" } = options;
   const lines = [root.name];
@@ -4736,18 +4788,21 @@ async function main(argv = process.argv) {
     process.stdout.write(String(written));
     return;
   }
-  const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
-  const blacklist = mode === "skeleton" && Array.isArray(req.excludeFolders) ? req.excludeFolders : [...DEFAULT_IGNORE];
-  const children = await buildTree(rootDir, rootDir, { blacklist, isIgnored });
+  if (mode === "skeleton") {
+    const children = buildTreeFromPaths(rootDir, req.includedFiles ?? []);
+    const root = { name: resolveRootName(rootDir), isDirectory: true, children };
+    process.stdout.write(renderTree(root));
+    return;
+  }
   if (mode === "tree") {
+    const isIgnored = await createGitignorePredicate([rootDir], req.respectGitignore ?? true);
+    const children = await buildTree(rootDir, rootDir, {
+      blacklist: [...DEFAULT_IGNORE],
+      isIgnored
+    });
     const lines = [];
     flattenTree(children, lines);
     process.stdout.write(lines.join("\n"));
-    return;
-  }
-  if (mode === "skeleton") {
-    const root = { name: resolveRootName(rootDir), isDirectory: true, children };
-    process.stdout.write(renderTree(root));
     return;
   }
   process.stderr.write(`scan-selection: unknown mode "${mode}"
