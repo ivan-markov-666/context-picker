@@ -1,6 +1,7 @@
 {
   "name": "directory-scanner",
   "version": "2.1.0",
+  "license": "MIT",
   "description": "Recursively scans a directory and outputs the paths and contents of files, with optional comment stripping. Also prints a project tree.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
